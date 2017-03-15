@@ -1,13 +1,7 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
-
-#include "shaders/Common.glsl"
-
-#if !GL_ES && __VERSION__ > 400
-layout(early_fragment_tests) in;
-#endif
 
 #include "shaders/Pack.glsl"
 #include "shaders/MsFsCommon.glsl"
@@ -24,9 +18,12 @@ layout(location = 0) in highp vec2 in_uv;
 #if PASS == COLOR
 layout(location = 1) in mediump vec3 in_normal;
 layout(location = 2) in mediump vec4 in_tangent;
-layout(location = 3) in mediump vec3 in_vertPosViewSpace;
-layout(location = 4) in mediump vec3 in_eyeTangentSpace; // Parallax
-layout(location = 5) in mediump vec3 in_normalTangentSpace; // Parallax
+#if CALC_BITANGENT_IN_VERT
+layout(location = 3) in mediump vec3 in_bitangent;
+#endif
+layout(location = 4) in mediump vec3 in_vertPosViewSpace;
+layout(location = 5) in mediump vec3 in_eyeTangentSpace; // Parallax
+layout(location = 6) in mediump vec3 in_normalTangentSpace; // Parallax
 #endif
 
 //
@@ -96,7 +93,11 @@ vec3 readNormalFromTexture(in vec3 normal, in vec4 tangent, in sampler2D map, in
 
 	vec3 n = normal; // Assume that getNormal() is called
 	vec3 t = normalize(tangent.xyz);
+#if CALC_BITANGENT_IN_VERT
+	vec3 b = normalize(in_bitangent.xyz);
+#else
 	vec3 b = cross(n, t) * tangent.w;
+#endif
 
 	mat3 tbnMat = mat3(t, b, n);
 
@@ -212,7 +213,7 @@ vec2 computeTextureCoordParallax(in sampler2D heightMap, in vec2 uv, in float he
 #if PASS == COLOR && LOD == 0
 	const uint MAX_SAMPLES = 25;
 	const uint MIN_SAMPLES = 1;
-	const float MAX_EFFECTIVE_DISTANCE = 8.0;
+	const float MAX_EFFECTIVE_DISTANCE = 32.0;
 
 	// Get that because we are sampling inside a loop
 	vec2 dPdx = dFdx(uv);
@@ -229,9 +230,10 @@ vec2 computeTextureCoordParallax(in sampler2D heightMap, in vec2 uv, in float he
 
 	vec3 E = normalize(eyeTangentSpace);
 
-	float sampleCountf = mix(float(MAX_SAMPLES),
-		float(MIN_SAMPLES),
-		min(dot(E, normTangentSpace), in_vertPosViewSpace.z / -MAX_EFFECTIVE_DISTANCE));
+	float factor0 = -dot(E, normTangentSpace);
+	float factor1 = in_vertPosViewSpace.z / -MAX_EFFECTIVE_DISTANCE;
+	float factor = (1.0 - factor0) * (1.0 - factor1);
+	float sampleCountf = mix(float(MIN_SAMPLES), float(MAX_SAMPLES), factor);
 
 	float stepSize = 1.0 / sampleCountf;
 
@@ -290,9 +292,9 @@ void writeRts(in vec3 diffColor, // from 0 to 1
 	in float metallic)
 {
 	GbufferInfo g;
-	g.diffuse = mix(diffColor, vec3(0.0), metallic);
+	g.diffuse = diffColor;
 	g.normal = normal;
-	g.specular = mix(specularColor, diffColor, metallic);
+	g.specular = specularColor;
 	g.roughness = roughness;
 	g.subsurface = subsurface;
 	g.emission = emission;

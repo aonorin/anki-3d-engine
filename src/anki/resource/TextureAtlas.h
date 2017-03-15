@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -21,12 +21,14 @@ namespace anki
 /// @code
 /// <textureAtlas>
 /// 	<texture>path/to/tex.ankitex</texture>
+/// 	<subTextureMargin>N</subTextureMargin>
 /// 	<subTextures>
 /// 		<subTexture>
 /// 			<name>name</name>
 /// 			<uv>0.1 0.2 0.5 0.6</uv>
 /// 		</subTexture>
 /// 		<subTexture>...</subTexture>
+/// 		...
 /// 	</subTextures>
 /// </textureAtlas>
 /// @endcode
@@ -55,6 +57,11 @@ public:
 		return m_size[1];
 	}
 
+	U getSubTextureMargin() const
+	{
+		return m_margin;
+	}
+
 	/// Get the UV coordinates of a sub texture.
 	ANKI_USE_RESULT Error getSubTextureInfo(CString name, F32 uv[4]) const;
 
@@ -70,6 +77,7 @@ private:
 	DynamicArray<char> m_subTexNames;
 	DynamicArray<SubTex> m_subTexes;
 	Array<U32, 2> m_size;
+	U32 m_margin = 0;
 };
 /// @}
 

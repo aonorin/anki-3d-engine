@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -25,7 +25,7 @@ Error GrManagerImpl::initSurface(const GrManagerInitInfo& init)
 	SDL_VERSION(&wminfo.version);
 	if(!SDL_GetWindowWMInfo(init.m_window->getNative().m_window, &wminfo))
 	{
-		ANKI_LOGE("SDL_GetWindowWMInfo() failed");
+		ANKI_VK_LOGE("SDL_GetWindowWMInfo() failed");
 		return ErrorCode::NONE;
 	}
 

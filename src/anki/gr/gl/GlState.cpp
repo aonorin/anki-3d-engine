@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -69,13 +69,13 @@ __stdcall
 	switch(severity)
 	{
 	case GL_DEBUG_SEVERITY_LOW:
-		ANKI_LOGI("GL: %s, %s: %s", sourced->str, typed->str, message);
+		ANKI_GL_LOGI("GL: %s, %s: %s", sourced->str, typed->str, message);
 		break;
 	case GL_DEBUG_SEVERITY_MEDIUM:
-		ANKI_LOGW("GL: %s, %s: %s", sourced->str, typed->str, message);
+		ANKI_GL_LOGW("GL: %s, %s: %s", sourced->str, typed->str, message);
 		break;
 	case GL_DEBUG_SEVERITY_HIGH:
-		ANKI_LOGE("GL: %s, %s: %s", sourced->str, typed->str, message);
+		ANKI_GL_LOGE("GL: %s, %s: %s", sourced->str, typed->str, message);
 		break;
 	}
 }
@@ -105,7 +105,11 @@ void GlState::initRenderThread()
 	{
 		m_gpu = GpuVendor::NVIDIA;
 	}
-	ANKI_LOGI("GPU vendor is %s", &GPU_VENDOR_STR[m_gpu][0]);
+	else if(glstr.find("AMD") != CString::NPOS || glstr.find("ATI") != CString::NPOS)
+	{
+		m_gpu = GpuVendor::AMD;
+	}
+	ANKI_GL_LOGI("GPU vendor is %s", &GPU_VENDOR_STR[m_gpu][0]);
 
 // Enable debug messages
 #if ANKI_GL == ANKI_GL_DESKTOP
@@ -129,6 +133,7 @@ void GlState::initRenderThread()
 	// Set some GL state
 	glEnable(GL_PROGRAM_POINT_SIZE);
 	glEnable(GL_TEXTURE_CUBE_MAP_SEAMLESS);
+	glEnable(GL_CULL_FACE);
 
 	// Create default VAO
 	glGenVertexArrays(1, &m_defaultVao);
@@ -140,24 +145,41 @@ void GlState::initRenderThread()
 		glEnableVertexAttribArray(i);
 	}
 
-	// Other
-	memset(&m_vertexBindingStrides[0], 0, sizeof(m_vertexBindingStrides));
+	I64 val;
+	glGetInteger64v(GL_UNIFORM_BUFFER_OFFSET_ALIGNMENT, &val);
+	m_uboAlignment = val;
+
+	glGetInteger64v(GL_SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT, &val);
+	m_ssboAlignment = val;
+
+	glGetInteger64v(GL_TEXTURE_BUFFER_OFFSET_ALIGNMENT, &val);
+	m_tboAlignment = val;
+
+	glGetInteger64v(GL_MAX_UNIFORM_BLOCK_SIZE, &val);
+	m_uniBlockMaxSize = val;
+
+	glGetInteger64v(GL_MAX_SHADER_STORAGE_BLOCK_SIZE, &val);
+	m_storageBlockMaxSize = val;
+
+	m_tboMaxRange = MAX_U32;
+
+	// Texture buffer textures
+	glGenTextures(MAX_DESCRIPTOR_SETS * MAX_TEXTURE_BUFFER_BINDINGS, &m_texBuffTextures[0][0]);
+	for(U i = 0; i < MAX_DESCRIPTOR_SETS; ++i)
+	{
+		for(U j = 0; j < MAX_TEXTURE_BUFFER_BINDINGS; ++j)
+		{
+			U unit = MAX_TEXTURE_BINDINGS * MAX_DESCRIPTOR_SETS + MAX_TEXTURE_BUFFER_BINDINGS * i + j;
+			glActiveTexture(GL_TEXTURE0 + unit);
+
+			glBindTexture(GL_TEXTURE_BUFFER, m_texBuffTextures[i][j]);
+		}
+	}
 }
 
 void GlState::destroy()
 {
 	glDeleteVertexArrays(1, &m_defaultVao);
-}
-
-void GlState::flushVertexState()
-{
-	if(m_vertBindingsDirty)
-	{
-		m_vertBindingsDirty = false;
-
-		glBindVertexBuffers(
-			0, m_vertBindingCount, &m_vertBuffNames[0], &m_vertBuffOffsets[0], &m_vertexBindingStrides[0]);
-	}
 }
 
 } // end namespace anki

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -31,53 +31,16 @@ Error DebugDrawer::init(Renderer* r)
 	m_r = r;
 	GrManager& gr = r->getGrManager();
 
-	// Create the pipelines
+	// Create the prog and shaders
 	ANKI_CHECK(r->getResourceManager().loadResource("shaders/Dbg.vert.glsl", m_vert));
 	ANKI_CHECK(r->getResourceManager().loadResource("shaders/Dbg.frag.glsl", m_frag));
-
-	PipelineInitInfo init;
-	init.m_vertex.m_bindingCount = 1;
-	init.m_vertex.m_bindings[0].m_stride = 2 * sizeof(Vec4);
-	init.m_vertex.m_attributeCount = 2;
-	init.m_vertex.m_attributes[0].m_format = PixelFormat(ComponentFormat::R32G32B32A32, TransformFormat::FLOAT);
-	init.m_vertex.m_attributes[0].m_offset = 0;
-	init.m_vertex.m_attributes[0].m_binding = 0;
-	init.m_vertex.m_attributes[1].m_format = PixelFormat(ComponentFormat::R32G32B32A32, TransformFormat::FLOAT);
-	init.m_vertex.m_attributes[1].m_offset = sizeof(Vec4);
-	init.m_vertex.m_attributes[1].m_binding = 0;
-	init.m_inputAssembler.m_topology = PrimitiveTopology::LINES;
-	init.m_depthStencil.m_depthWriteEnabled = false;
-	init.m_depthStencil.m_format = MS_DEPTH_ATTACHMENT_PIXEL_FORMAT;
-	init.m_color.m_attachmentCount = 1;
-	init.m_color.m_attachments[0].m_format = DBG_COLOR_ATTACHMENT_PIXEL_FORMAT;
-	init.m_shaders[U(ShaderType::VERTEX)] = m_vert->getGrShader();
-	init.m_shaders[U(ShaderType::FRAGMENT)] = m_frag->getGrShader();
-
-	getPpline(true, PrimitiveTopology::LINES) = gr.newInstance<Pipeline>(init);
-
-	init.m_inputAssembler.m_topology = PrimitiveTopology::TRIANGLES;
-	getPpline(true, PrimitiveTopology::TRIANGLES) = gr.newInstance<Pipeline>(init);
-
-	init.m_depthStencil.m_depthCompareFunction = CompareOperation::ALWAYS;
-	getPpline(false, PrimitiveTopology::TRIANGLES) = gr.newInstance<Pipeline>(init);
-
-	init.m_inputAssembler.m_topology = PrimitiveTopology::LINES;
-	getPpline(false, PrimitiveTopology::LINES) = gr.newInstance<Pipeline>(init);
+	m_prog = gr.newInstance<ShaderProgram>(m_vert->getGrShader(), m_frag->getGrShader());
 
 	// Create the vert buffs
 	for(BufferPtr& v : m_vertBuff)
 	{
 		v = gr.newInstance<Buffer>(
 			sizeof(Vertex) * MAX_VERTS_PER_FRAME, BufferUsageBit::VERTEX, BufferMapAccessBit::WRITE);
-	}
-
-	// Create the resouce groups
-	U c = 0;
-	for(ResourceGroupPtr& rc : m_rcGroup)
-	{
-		ResourceGroupInitInfo rcinit;
-		rcinit.m_vertexBuffers[0].m_buffer = m_vertBuff[c++];
-		rc = gr.newInstance<ResourceGroup>(rcinit);
 	}
 
 	m_mMat.setIdentity();
@@ -95,7 +58,11 @@ void DebugDrawer::prepareFrame(CommandBufferPtr& jobs)
 	void* mapped = m_vertBuff[frame]->map(0, MAX_VERTS_PER_FRAME * sizeof(Vertex), BufferMapAccessBit::WRITE);
 	m_clientVerts = WeakArray<Vertex>(static_cast<Vertex*>(mapped), MAX_VERTS_PER_FRAME);
 
-	m_cmdb->bindResourceGroup(m_rcGroup[frame], 0, nullptr);
+	m_cmdb->bindVertexBuffer(0, m_vertBuff[frame], 0, 2 * sizeof(Vec4));
+	m_cmdb->setVertexAttribute(0, 0, PixelFormat(ComponentFormat::R32G32B32A32, TransformFormat::FLOAT), 0);
+	m_cmdb->setVertexAttribute(1, 0, PixelFormat(ComponentFormat::R32G32B32A32, TransformFormat::FLOAT), sizeof(Vec4));
+
+	m_cmdb->bindShaderProgram(m_prog);
 
 	m_frameVertCount = 0;
 	m_crntDrawVertCount = 0;
@@ -108,7 +75,10 @@ void DebugDrawer::finishFrame()
 
 	flush();
 
-	m_cmdb = CommandBufferPtr(); // Release job chain
+	// Restore state
+	m_cmdb->setDepthCompareOperation(CompareOperation::ALWAYS);
+
+	m_cmdb = CommandBufferPtr(); // Release command buffer
 }
 
 void DebugDrawer::setModelMatrix(const Mat4& m)
@@ -151,7 +121,7 @@ void DebugDrawer::pushBackVertex(const Vec3& pos)
 	}
 	else
 	{
-		ANKI_LOGW("Increase DebugDrawer::MAX_VERTS_PER_FRAME");
+		ANKI_R_LOGW("Increase DebugDrawer::MAX_VERTS_PER_FRAME");
 	}
 }
 
@@ -168,9 +138,10 @@ void DebugDrawer::flush()
 			ANKI_ASSERT((m_crntDrawVertCount % 3) == 0);
 		}
 
-		m_cmdb->bindPipeline(getPpline(m_depthTestEnabled, m_primitive));
+		m_cmdb->setDepthCompareOperation((m_depthTestEnabled) ? CompareOperation::LESS : CompareOperation::ALWAYS);
+
 		U firstVert = m_frameVertCount - m_crntDrawVertCount;
-		m_cmdb->drawArrays(m_crntDrawVertCount, 1, firstVert);
+		m_cmdb->drawArrays(m_primitive, m_crntDrawVertCount, 1, firstVert);
 
 		m_crntDrawVertCount = 0;
 	}
@@ -256,14 +227,14 @@ void DebugDrawer::drawSphere(F32 radius, I complexity)
 	begin(PrimitiveTopology::LINES);
 
 	// Pre-calculate the sphere points5
-	F32 fi = getPi<F32>() / complexity;
+	F32 fi = PI / complexity;
 
 	Vec3 prev(1.0, 0.0, 0.0);
-	for(F32 th = fi; th < getPi<F32>() * 2.0 + fi; th += fi)
+	for(F32 th = fi; th < PI * 2.0 + fi; th += fi)
 	{
 		Vec3 p = Mat3(Euler(0.0, th, 0.0)) * Vec3(1.0, 0.0, 0.0);
 
-		for(F32 th2 = 0.0; th2 < getPi<F32>(); th2 += fi)
+		for(F32 th2 = 0.0; th2 < PI; th2 += fi)
 		{
 			Mat3 rot(Euler(th2, 0.0, 0.0));
 
@@ -273,7 +244,7 @@ void DebugDrawer::drawSphere(F32 radius, I complexity)
 			pushBackVertex(rotPrev);
 			pushBackVertex(rotP);
 
-			Mat3 rot2(Euler(0.0, 0.0, getPi<F32>() / 2));
+			Mat3 rot2(Euler(0.0, 0.0, PI / 2));
 
 			pushBackVertex(rot2 * rotPrev);
 			pushBackVertex(rot2 * rotP);
@@ -341,7 +312,7 @@ void CollisionDebugDrawer::visit(const Plane& plane)
 	Quat q;
 	q.setFrom2Vec3(Vec3(0.0, 0.0, 1.0), n);
 	Mat3 rot(q);
-	rot.rotateXAxis(getPi<F32>() / 2.0);
+	rot.rotateXAxis(PI / 2.0);
 	Mat4 trf(Vec4(n * o, 1.0), rot);
 
 	m_dbg->setModelMatrix(trf);
@@ -380,15 +351,15 @@ void CollisionDebugDrawer::visit(const Frustum& f)
 {
 	switch(f.getType())
 	{
-	case Frustum::Type::ORTHOGRAPHIC:
+	case FrustumType::ORTHOGRAPHIC:
 		visit(static_cast<const OrthographicFrustum&>(f).getObb());
 		break;
-	case Frustum::Type::PERSPECTIVE:
+	case FrustumType::PERSPECTIVE:
 	{
 		const PerspectiveFrustum& pf = static_cast<const PerspectiveFrustum&>(f);
 
 		F32 camLen = pf.getFar();
-		F32 tmp0 = camLen / tan((getPi<F32>() - pf.getFovX()) * 0.5) + 0.001;
+		F32 tmp0 = camLen / tan((PI - pf.getFovX()) * 0.5) + 0.001;
 		F32 tmp1 = camLen * tan(pf.getFovY() * 0.5) + 0.001;
 
 		Vec3 points[] = {
@@ -447,7 +418,7 @@ void PhysicsDebugDrawer::drawLines(const Vec3* lines, const U32 linesCount, cons
 	m_dbg->end();
 }
 
-void SceneDebugDrawer::draw(FrustumComponent& fr) const
+void SceneDebugDrawer::draw(const FrustumComponent& fr) const
 {
 	const Frustum& fs = fr.getFrustum();
 
@@ -456,7 +427,7 @@ void SceneDebugDrawer::draw(FrustumComponent& fr) const
 	fs.accept(coldraw);
 }
 
-void SceneDebugDrawer::draw(SpatialComponent& x) const
+void SceneDebugDrawer::draw(const SpatialComponent& x) const
 {
 	if(!x.getVisibleByCamera())
 	{
@@ -524,23 +495,6 @@ void SceneDebugDrawer::draw(const PortalComponent& c) const
 	m_dbg->end();
 }
 
-void SceneDebugDrawer::drawPath(const Path& path) const
-{
-	/*const U count = path.getPoints().size();
-
-	m_dbg->setColor(Vec3(1.0, 1.0, 0.0));
-
-	m_dbg->begin();
-
-	for(U i = 0; i < count - 1; i++)
-	{
-			m_dbg->pushBackVertex(path.getPoints()[i].getPosition());
-			m_dbg->pushBackVertex(path.getPoints()[i + 1].getPosition());
-	}
-
-	m_dbg->end();*/
-}
-
 void SceneDebugDrawer::draw(const ReflectionProxyComponent& proxy) const
 {
 	m_dbg->setModelMatrix(Mat4::getIdentity());
@@ -556,6 +510,20 @@ void SceneDebugDrawer::draw(const ReflectionProxyComponent& proxy) const
 		}
 	}
 	m_dbg->end();
+}
+
+void SceneDebugDrawer::draw(const DecalComponent& decalc) const
+{
+	const MoveComponent& movec = decalc.getSceneNode().getComponent<MoveComponent>();
+
+	m_dbg->setColor(Vec3(0.0, 1.0, 0.0));
+
+	const Vec3& size = decalc.getVolumeSize();
+	Vec3 halfSize = size / 2.0;
+	Obb box(Vec4(0.0, 0.0, -halfSize.z(), 0.0), Mat3x4::getIdentity(), Vec4(halfSize, 0.0));
+	box.transform(movec.getWorldTransform());
+	CollisionDebugDrawer cd(m_dbg);
+	box.accept(cd);
 }
 
 } // end namespace anki

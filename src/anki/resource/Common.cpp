@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -48,7 +48,7 @@ Error fileExtensionToShaderType(const CString& filename, ShaderType& type)
 	}
 	else
 	{
-		ANKI_LOGE("Wrong shader file format: %s", &filename[0]);
+		ANKI_RESOURCE_LOGE("Wrong shader file format: %s", &filename[0]);
 		err = ErrorCode::USER_DATA;
 	}
 

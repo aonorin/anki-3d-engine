@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -22,7 +22,7 @@ class SpinLock;
 /// @addtogroup util_memory
 /// @{
 
-#define ANKI_MEM_USE_SIGNATURES ANKI_DEBUG
+#define ANKI_MEM_USE_SIGNATURES ANKI_EXTRA_CHECKS
 
 /// Allocate aligned memory
 void* mallocAligned(PtrSize size, PtrSize alignmentBytes);
@@ -156,7 +156,7 @@ public:
 private:
 #if ANKI_MEM_USE_SIGNATURES
 	AllocationSignature m_signature = 0;
-	static const U32 MAX_ALIGNMENT = 16;
+	static const U32 MAX_ALIGNMENT = 64;
 	U32 m_headerSize = 0;
 #endif
 };

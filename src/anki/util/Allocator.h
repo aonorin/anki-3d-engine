@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -86,7 +86,7 @@ public:
 		m_pool = reinterpret_cast<TPool*>(allocCb(allocCbUserData, nullptr, sizeof(TPool), alignof(TPool)));
 		if(ANKI_UNLIKELY(!m_pool))
 		{
-			ANKI_LOGF("Out of memory");
+			ANKI_UTIL_LOGF("Out of memory");
 		}
 
 		new(m_pool) TPool();
@@ -145,7 +145,7 @@ public:
 		void* out = m_pool->allocate(size, alignment);
 		if(ANKI_UNLIKELY(out == nullptr))
 		{
-			ANKI_LOGF("Out of memory");
+			ANKI_UTIL_LOGF("Out of memory");
 		}
 
 		return reinterpret_cast<pointer>(out);

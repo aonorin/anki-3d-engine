@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -86,7 +86,7 @@ void main()
 	float lambert = nol;
 
 #if defined(POINT_LIGHT)
-	out_color = (specC + diffC) * (att * lambert);
+	out_color = (specC + diffC) * (att * max(lambert, gbuffer.subsurface));
 #else
 	float spot =
 		computeSpotFactor(l, u_light.diffuseColorOuterCos.w, u_light.specularColorInnerCos.w, u_light.lightDirPad1.xyz);

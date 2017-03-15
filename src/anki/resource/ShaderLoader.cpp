@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -49,8 +49,8 @@ Error ShaderLoader::parseFileIncludes(ResourceFilename filename, U32 depth)
 	// first check the depth
 	if(depth > MAX_INCLUDE_DEPTH)
 	{
-		ANKI_LOGE("The include depth is too high. "
-				  "Probably circular includance");
+		ANKI_RESOURCE_LOGE("The include depth is too high. "
+						   "Probably circular includance");
 		return ErrorCode::USER_DATA;
 	}
 
@@ -64,7 +64,7 @@ Error ShaderLoader::parseFileIncludes(ResourceFilename filename, U32 depth)
 	lines.splitString(txt.toCString(), '\n');
 	if(lines.getSize() < 1)
 	{
-		ANKI_LOGE("File is empty: %s", &filename[0]);
+		ANKI_RESOURCE_LOGE("File is empty: %s", &filename[0]);
 		return ErrorCode::USER_DATA;
 	}
 
@@ -85,7 +85,7 @@ Error ShaderLoader::parseFileIncludes(ResourceFilename filename, U32 depth)
 			}
 			else
 			{
-				ANKI_LOGE("Malformed #include: %s", &line[0]);
+				ANKI_RESOURCE_LOGE("Malformed #include: %s", &line[0]);
 				return ErrorCode::USER_DATA;
 			}
 		}

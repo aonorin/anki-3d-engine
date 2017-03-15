@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -67,7 +67,7 @@ Error Animation::load(const ResourceFilename& filename)
 	ANKI_CHECK(chEl.getSiblingElementsCount(channelCount));
 	if(channelCount == 0)
 	{
-		ANKI_LOGE("Didn't found any channels");
+		ANKI_RESOURCE_LOGE("Didn't found any channels");
 		return ErrorCode::USER_DATA;
 	}
 	m_channels.create(getAllocator(), channelCount);

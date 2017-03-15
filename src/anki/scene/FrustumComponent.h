@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -21,6 +21,7 @@ class VisibilityTestResults;
 /// @{
 
 /// Flags that affect visibility tests.
+/// WARNING!!!!!!!!!!: If you change this remember to change the FrustumComponent::Flags as well
 enum class FrustumComponentVisibilityTestFlag : U8
 {
 	NONE = 0,
@@ -31,9 +32,11 @@ enum class FrustumComponentVisibilityTestFlag : U8
 	REFLECTION_PROBES = 1 << 4,
 	REFLECTION_PROXIES = 1 << 5,
 	OCCLUDERS = 1 << 6,
+	DECALS = 1 << 7,
 
 	ALL_TESTS = RENDER_COMPONENTS | LIGHT_COMPONENTS | LENS_FLARE_COMPONENTS | SHADOW_CASTERS | REFLECTION_PROBES
 		| REFLECTION_PROXIES
+		| DECALS
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(FrustumComponentVisibilityTestFlag, inline)
 
@@ -75,17 +78,6 @@ public:
 	const Mat4& getViewProjectionMatrix() const
 	{
 		return m_vpm;
-	}
-
-	/// Parameters used to get the view space position using the depth value and the NDC xy coordinates.
-	/// @code
-	/// vec3 fragPos;
-	/// fragPos.z = projectionParams.z / (projectionParams.w + depth);
-	/// fragPos.xy = projectionParams * NDC * fragPos.z;
-	/// @endcode
-	const Vec4& getProjectionParameters() const
-	{
-		return m_projParams;
 	}
 
 	/// Get the origin for sorting and visibility tests
@@ -132,7 +124,7 @@ public:
 	}
 
 	/// Is a spatial inside the frustum?
-	Bool insideFrustum(SpatialComponent& sp) const
+	Bool insideFrustum(const SpatialComponent& sp) const
 	{
 		return m_frustum->insideFrustum(sp.getSpatialCollisionShape());
 	}
@@ -179,8 +171,8 @@ public:
 private:
 	enum Flags
 	{
-		SHAPE_MARKED_FOR_UPDATE = 1 << 7,
-		TRANSFORM_MARKED_FOR_UPDATE = 1 << 8,
+		SHAPE_MARKED_FOR_UPDATE = 1 << 8,
+		TRANSFORM_MARKED_FOR_UPDATE = 1 << 9,
 	};
 	ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(Flags, friend)
 
@@ -189,16 +181,12 @@ private:
 	Mat4 m_vm = Mat4::getIdentity(); ///< View matrix
 	Mat4 m_vpm = Mat4::getIdentity(); ///< View projection matrix
 
-	Vec4 m_projParams = Vec4(0.0);
-
 	/// Visibility stuff. It's per frame so the pointer is invalid on the next frame and before any visibility tests
 	/// are run.
 	VisibilityTestResults* m_visible = nullptr;
 	VisibilityStats m_stats;
 
 	BitMask<U16> m_flags;
-
-	void computeProjectionParams();
 };
 /// @}
 

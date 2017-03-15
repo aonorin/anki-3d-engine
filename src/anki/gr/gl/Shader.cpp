@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -11,8 +11,8 @@
 namespace anki
 {
 
-Shader::Shader(GrManager* manager, U64 hash)
-	: GrObject(manager, CLASS_TYPE, hash)
+Shader::Shader(GrManager* manager, U64 hash, GrObjectCache* cache)
+	: GrObject(manager, CLASS_TYPE, hash, cache)
 {
 }
 
@@ -38,7 +38,7 @@ public:
 
 	Error operator()(GlState&)
 	{
-		ShaderImpl& impl = m_shader->getImplementation();
+		ShaderImpl& impl = *m_shader->m_impl;
 
 		Error err = impl.init(m_type, m_source);
 
@@ -62,11 +62,11 @@ void Shader::init(ShaderType shaderType, const CString& source)
 	CommandBufferPtr cmdb = getManager().newInstance<CommandBuffer>(CommandBufferInitInfo());
 
 	// Copy source to the command buffer
-	CommandBufferAllocator<char> alloc = cmdb->getImplementation().getInternalAllocator();
+	CommandBufferAllocator<char> alloc = cmdb->m_impl->getInternalAllocator();
 	char* src = alloc.allocate(source.getLength() + 1);
 	memcpy(src, &source[0], source.getLength() + 1);
 
-	cmdb->getImplementation().pushBackNewCommand<ShaderCreateCommand>(this, shaderType, src, alloc);
+	cmdb->m_impl->pushBackNewCommand<ShaderCreateCommand>(this, shaderType, src, alloc);
 	cmdb->flush();
 }
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -37,6 +37,11 @@ public:
 	virtual ~SceneNode();
 
 	SceneGraph& getSceneGraph()
+	{
+		return *m_scene;
+	}
+
+	const SceneGraph& getSceneGraph() const
 	{
 		return *m_scene;
 	}
@@ -121,14 +126,14 @@ public:
 
 	/// Iterate all components of a specific type
 	template<typename Component, typename Func>
-	ANKI_USE_RESULT Error iterateComponentsOfType(Func func)
+	ANKI_USE_RESULT Error iterateComponentsOfType(Func func) const
 	{
 		Error err = ErrorCode::NONE;
 		auto it = m_components.getBegin();
 		auto end = it + m_componentsCount;
 		for(; !err && it != end; ++it)
 		{
-			SceneComponent* comp = *it;
+			auto* comp = *it;
 			if(comp->getType() == Component::CLASS_TYPE)
 			{
 				err = func(*static_cast<Component*>(comp));

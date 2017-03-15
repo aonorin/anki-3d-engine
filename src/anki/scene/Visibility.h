@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -84,6 +84,7 @@ enum class VisibilityGroupType
 	FLARES,
 	REFLECTION_PROBES,
 	REFLECTION_PROXIES,
+	DECALS,
 
 	TYPE_COUNT,
 	FIRST = RENDERABLES_MS
@@ -143,12 +144,12 @@ public:
 	void combineWith(SceneFrameAllocator<U8> alloc, WeakArray<VisibilityTestResults*>& results);
 
 	template<typename TFunc>
-	void iterateAll(TFunc f)
+	void iterateAll(TFunc f) const
 	{
 		for(VisibilityGroupType i = VisibilityGroupType::FIRST; i < VisibilityGroupType::TYPE_COUNT; ++i)
 		{
-			VisibleNode* it = getBegin(i);
-			VisibleNode* end = getEnd(i);
+			const VisibleNode* it = getBegin(i);
+			const VisibleNode* end = getEnd(i);
 			while(it != end)
 			{
 				f(*it->m_node);

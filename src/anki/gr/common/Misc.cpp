@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -38,7 +38,13 @@ void logShaderErrorCode(const CString& error, const CString& source, GenericMemo
 		prettySrc.append(tmp);
 	}
 
-	ANKI_LOGE("Shader compilation failed:\n%s\n%s\n%s\n%s", padding, &error[0], padding, &prettySrc[0]);
+	ANKI_LOGE("Shader compilation failed:\n%s\n%s\n%s\n%s\n%s\n%s",
+		padding,
+		&error[0],
+		padding,
+		&prettySrc[0],
+		padding,
+		&error[0]);
 }
 
 Bool textureInitInfoValid(const TextureInitInfo& inf)
@@ -141,7 +147,7 @@ void getFormatInfo(const PixelFormat& fmt, U& texelComponents, U& texelBytes, U&
 		texelBytes = texelComponents * 4;
 		break;
 	case ComponentFormat::R32G32B32A32:
-		texelComponents = 3;
+		texelComponents = 4;
 		texelBytes = texelComponents * 4;
 		break;
 	case ComponentFormat::R10G10B10A2:
@@ -176,7 +182,7 @@ void getFormatInfo(const PixelFormat& fmt, U& texelComponents, U& texelBytes, U&
 		texelComponents = 1;
 		texelBytes = texelComponents * 2;
 		break;
-	case ComponentFormat::D24:
+	case ComponentFormat::D24S8:
 		texelComponents = 1;
 		texelBytes = texelComponents * 4;
 		break;

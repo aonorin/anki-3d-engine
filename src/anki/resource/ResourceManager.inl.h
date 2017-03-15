@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -39,7 +39,7 @@ Error ResourceManager::loadResource(const CString& filename, ResourcePtr<T>& out
 			err = ptr->load(filename);
 			if(err)
 			{
-				ANKI_LOGE("Failed to load resource: %s", &filename[0]);
+				ANKI_RESOURCE_LOGE("Failed to load resource: %s", &filename[0]);
 				m_alloc.deleteInstance(ptr);
 				return err;
 			}

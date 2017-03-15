@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -7,6 +7,7 @@
 
 #include <anki/gr/Common.h>
 #include <anki/gr/GrObject.h>
+#include <anki/gr/GrManager.h>
 #include <anki/util/HashMap.h>
 #include <anki/util/NonCopyable.h>
 
@@ -19,41 +20,19 @@ namespace anki
 /// A cache that can be used for specific GrObject types.
 class GrObjectCache : public NonCopyable
 {
+	friend class GrObject;
+
 public:
-	void init(const GrAllocator<U8>& alloc)
+	GrObjectCache(GrManager* gr)
+		: m_gr(gr)
 	{
-		m_alloc = alloc;
 	}
 
-	Mutex& getMutex()
-	{
-		return m_mtx;
-	}
+	~GrObjectCache();
 
-	/// Try to find an object in the cache.
-	GrObject* tryFind(U64 hash)
-	{
-		auto it = m_map.find(hash);
-		return (it != m_map.getEnd()) ? *it : nullptr;
-	}
-
-	/// Register object in the cache.
-	void registerObject(GrObject* obj)
-	{
-		ANKI_ASSERT(obj && obj->getHash() != 0);
-		ANKI_ASSERT(obj->getHash() != 0);
-		ANKI_ASSERT(tryFind(obj->getHash()) == nullptr);
-		m_map.pushBack(m_alloc, obj->getHash(), obj);
-	}
-
-	/// Unregister an object from the cache.
-	void unregisterObject(GrObject* obj)
-	{
-		ANKI_ASSERT(obj && obj->getHash() != 0);
-		ANKI_ASSERT(tryFind(obj->getHash()) != nullptr);
-		auto it = m_map.find(obj->getHash());
-		m_map.erase(m_alloc, it);
-	}
+	/// Create a new graphics object and use the cache to avoid duplication. It's thread safe.
+	template<typename T, typename TArg>
+	GrObjectPtr<T> newInstance(const TArg& arg, U64 overrideHash = 0);
 
 private:
 	using Key = U64;
@@ -78,10 +57,41 @@ private:
 		}
 	};
 
-	GrAllocator<U8> m_alloc;
+	GrManager* m_gr;
 	HashMap<U64, GrObject*, Hasher, Compare> m_map;
 	Mutex m_mtx;
+
+	/// Try to find an object in the cache.
+	GrObject* tryFind(U64 hash)
+	{
+		auto it = m_map.find(hash);
+		return (it != m_map.getEnd()) ? (*it) : nullptr;
+	}
+
+	/// Unregister an object from the cache.
+	void unregisterObject(GrObject* obj);
 };
+
+template<typename T, typename TArg>
+inline GrObjectPtr<T> GrObjectCache::newInstance(const TArg& arg, U64 overrideHash)
+{
+	U64 hash = (overrideHash != 0) ? overrideHash : arg.computeHash();
+	ANKI_ASSERT(hash != 0);
+
+	LockGuard<Mutex> lock(m_mtx);
+	GrObject* ptr = tryFind(hash);
+	if(ptr == nullptr)
+	{
+		auto tptr = m_gr->template newInstanceCached<T>(hash, this, arg);
+		m_map.pushBack(m_gr->getAllocator(), hash, tptr.get());
+		return tptr;
+	}
+	else
+	{
+		ANKI_ASSERT(ptr->getType() == T::CLASS_TYPE);
+		return GrObjectPtr<T>(static_cast<T*>(ptr));
+	}
+}
 /// @}
 
 } // end namespace anki

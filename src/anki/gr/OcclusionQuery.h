@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -14,28 +14,23 @@ namespace anki
 /// @{
 
 /// Occlusion query.
-class OcclusionQuery : public GrObject
+class OcclusionQuery final : public GrObject
 {
-public:
+	ANKI_GR_OBJECT
+
+anki_internal:
+	UniquePtr<OcclusionQueryImpl> m_impl;
+
 	static const GrObjectType CLASS_TYPE = GrObjectType::OCCLUSION_QUERY;
 
 	/// Construct.
-	OcclusionQuery(GrManager* manager, U64 hash = 0);
+	OcclusionQuery(GrManager* manager, U64 hash, GrObjectCache* cache);
 
 	/// Destroy.
 	~OcclusionQuery();
 
-	/// Access the implementation.
-	OcclusionQueryImpl& getImplementation()
-	{
-		return *m_impl;
-	}
-
 	/// Create a query.
 	void init();
-
-private:
-	UniquePtr<OcclusionQueryImpl> m_impl;
 };
 /// @}
 

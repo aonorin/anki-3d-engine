@@ -1,11 +1,11 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
-#include <anki/Config.h>
+#include <anki/util/Common.h>
 #include <cstdint>
 #include <cstddef>
 #include <limits>
@@ -68,9 +68,9 @@ using F64 = double; ///< Floating point 64bit
 const F64 MAX_F64 = std::numeric_limits<F64>::max();
 const F64 MIN_F64 = -std::numeric_limits<F64>::max();
 
-using Bool = bool; ///< Fast boolean type
-using Bool8 = U8; ///< Small 8bit boolean type
-using Bool32 = U32; ///< A 32bit boolean
+using Bool = int; ///< Fast boolean type
+using Bool8 = I8; ///< Small 8bit boolean type
+using Bool32 = I32; ///< A 32bit boolean
 
 /// Error codes
 enum class ErrorCode : I32
@@ -179,10 +179,10 @@ private:
 	} while(0)
 
 /// Macro to nuliffy a pointer on debug builds.
-#if ANKI_DEBUG == 1
-#define ANKI_DBG_NULLIFY_PTR = nullptr
+#if ANKI_EXTRA_CHECKS
+#define ANKI_DBG_NULLIFY = {}
 #else
-#define ANKI_DBG_NULLIFY_PTR
+#define ANKI_DBG_NULLIFY
 #endif
 /// @}
 

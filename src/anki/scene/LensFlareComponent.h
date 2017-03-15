@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -72,11 +72,6 @@ public:
 		return m_tex->getGrTexture();
 	}
 
-	const ResourceGroupPtr& getResourceGroup() const
-	{
-		return m_rcGroup;
-	}
-
 	/// @name SceneComponent virtuals
 	/// @{
 	Error update(SceneNode& node, F32 prevTime, F32 crntTime, Bool& updated) override
@@ -95,8 +90,6 @@ private:
 	Vec2 m_otherFlareSize = Vec2(1.0);
 
 	Vec4 m_worldPosition = Vec4(0.0);
-
-	ResourceGroupPtr m_rcGroup;
 };
 /// @}
 

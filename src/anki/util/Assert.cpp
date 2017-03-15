@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -14,7 +14,7 @@
 namespace anki
 {
 
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 
 void akassert(const char* exprTxt, const char* file, int line, const char* func)
 {
@@ -26,7 +26,26 @@ void akassert(const char* exprTxt, const char* file, int line, const char* func)
 	fprintf(stderr, "(%s:%d %s) Assertion failed: %s\n", file, line, func, exprTxt);
 #endif
 
-	printBacktrace();
+	class BW : public BackTraceWalker
+	{
+	public:
+		BW()
+			: BackTraceWalker(10)
+		{
+		}
+
+		U m_c = 0;
+
+		void operator()(const char* symbol)
+		{
+			printf("%.2u: %s\n", unsigned(m_c++), symbol);
+		}
+	};
+
+	BW bw;
+	printf("Backtrace:\n");
+	bw.exec();
+
 	abort();
 }
 

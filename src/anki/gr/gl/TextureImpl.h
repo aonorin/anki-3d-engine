@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -34,6 +34,7 @@ public:
 	Bool8 m_compressed = false;
 	PixelFormat m_pformat;
 	DynamicArray<GLuint> m_texViews; ///< Temp views for gen mips.
+	DepthStencilAspectBit m_dsAspect = DepthStencilAspectBit::NONE;
 
 	TextureImpl(GrManager* manager)
 		: GlObject(manager)
@@ -42,12 +43,12 @@ public:
 
 	~TextureImpl();
 
-	void checkSurface(const TextureSurfaceInfo& surf) const
+	void checkSurfaceOrVolume(const TextureSurfaceInfo& surf) const
 	{
 		checkTextureSurface(m_texType, m_depth, m_mipsCount, m_layerCount, surf);
 	}
 
-	void checkVolume(const TextureVolumeInfo& vol) const
+	void checkSurfaceOrVolume(const TextureVolumeInfo& vol) const
 	{
 		ANKI_ASSERT(m_texType == TextureType::_3D);
 		ANKI_ASSERT(vol.m_level < m_mipsCount);
@@ -60,10 +61,10 @@ public:
 	void init(const TextureInitInfo& init);
 
 	/// Write texture data.
-	void writeSurface(const TextureSurfaceInfo& surf, void* data, PtrSize dataSize);
+	void writeSurface(const TextureSurfaceInfo& surf, GLuint pbo, PtrSize offset, PtrSize dataSize);
 
 	/// Write texture data.
-	void writeVolume(const TextureVolumeInfo& vol, void* data, PtrSize dataSize);
+	void writeVolume(const TextureVolumeInfo& vol, GLuint pbo, PtrSize offset, PtrSize dataSize);
 
 	/// Generate mipmaps.
 	void generateMipmaps2d(U face, U layer);
@@ -76,7 +77,7 @@ public:
 
 	void bind();
 
-	void clear(const TextureSurfaceInfo& surf, const ClearValue& clearValue);
+	void clear(const TextureSurfaceInfo& surf, const ClearValue& clearValue, DepthStencilAspectBit aspect);
 
 	U computeSurfaceIdx(const TextureSurfaceInfo& surf) const;
 };

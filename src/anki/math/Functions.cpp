@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,7 +18,7 @@ static Scalar polynomialSinQuadrant(const Scalar a)
 template<typename Scalar>
 static void sinCosInternal(const Scalar a_, Scalar& sina, Scalar& cosa)
 {
-#if ANKI_DEBUG
+#if ANKI_EXTRA_CHECKS
 	sina = sin(a_);
 	cosa = cos(a_);
 #else
@@ -29,7 +29,7 @@ static void sinCosInternal(const Scalar a_, Scalar& sina, Scalar& cosa)
 		a = -a;
 		negative = true;
 	}
-	const Scalar TWO_OVER_PI = 1.0 / (getPi<Scalar>() / 2.0);
+	const Scalar TWO_OVER_PI = 1.0 / (PI / 2.0);
 	Scalar floatA = TWO_OVER_PI * a;
 	I intA = (int)floatA;
 

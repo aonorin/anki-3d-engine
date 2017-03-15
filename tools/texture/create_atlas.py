@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 
-# Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+# Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 # All rights reserved.
 # Code licensed under the BSD License.
 # http://www.anki3d.org/LICENSE
@@ -41,6 +41,7 @@ class Context:
 	out_file = ""
 	margin = 0
 	bg_color = 0
+	rpath = ""
 
 	sub_images = []
 	atlas_width = 0
@@ -56,22 +57,19 @@ def printi(msg):
 def parse_commandline():
 	""" Parse the command line arguments """
 
-	parser = argparse.ArgumentParser(
-			description = "This program creates a texture atlas",
+	parser = argparse.ArgumentParser(description = "This program creates a texture atlas",
 			formatter_class = argparse.ArgumentDefaultsHelpFormatter)
 
 	parser.add_argument("-i", "--input", nargs = "+", required = True,
 			help = "specify the image(s) to convert. Seperate with space")
 
-	parser.add_argument("-o", "--output", default = "atlas.png",
-			help = "specify output PNG image.")
+	parser.add_argument("-o", "--output", default = "atlas.png", help = "specify output PNG image.")
 
-	parser.add_argument("-m", "--margin", type = int, default = 0,
-			help = "specify the margin.")
+	parser.add_argument("-m", "--margin", type = int, default = 0, help = "specify the margin.")
 
-	parser.add_argument("-b", "--background-color", 
-			help = "specify background of empty areas",
-			default = "ff00ff00")
+	parser.add_argument("-b", "--background-color", help = "specify background of empty areas", default = "ff00ff00")
+
+	parser.add_argument("-r", "--rpath", help = "Path to append to the .ankiatex", default = "")
 
 	args = parser.parse_args()
 
@@ -80,6 +78,7 @@ def parse_commandline():
 	ctx.out_file = args.output
 	ctx.margin = args.margin
 	ctx.bg_color = int(args.background_color, 16)
+	ctx.rpath = args.rpath
 
 	if len(ctx.in_files) < 2:
 		parser.error("Not enough images")
@@ -98,8 +97,7 @@ def load_images(ctx):
 			ctx.mode = img.image.mode
 		else:
 			if ctx.mode != img.image.mode:
-				raise Exception("Image \"%s\" has a different mode: \"%s\"" \
-						% (i, img.image.mode))
+				raise Exception("Image \"%s\" has a different mode: \"%s\"" % (i, img.image.mode))
 
 		img.width = img.image.size[0]
 		img.height = img.image.size[1]
@@ -108,6 +106,11 @@ def load_images(ctx):
 		img.mheight = img.height + ctx.margin
 
 		printi("Image \"%s\" loaded. Mode \"%s\"" % (i, img.image.mode))
+
+		for simage in ctx.sub_images:
+			if os.path.basename(simage.image_name) == os.path.basename(i):
+				raise Exception("Cannot have images with the same base %s" % i)
+
 		ctx.sub_images.append(img)
 
 def compute_atlas_rough_size(ctx):
@@ -174,7 +177,7 @@ def place_sub_images(ctx):
 		sub_image = ctx.sub_images[unplaced_imgs[0]]
 		unplaced_imgs.pop(0)
 
-		printi("Will try to place image \"%s\" of size %ux%d" % \
+		printi("Will try to place image \"%s\" of size %ux%d" % 
 				(sub_image.image_name, sub_image.width, sub_image.height))
 
 		# Find best frame
@@ -246,11 +249,9 @@ def create_atlas(ctx):
 	draw.rectangle((0, 0, ctx.atlas_width, ctx.atlas_height), bg_color)
 
 	for sub_image in ctx.sub_images:
-		assert sub_image.atlas_x != 0xFFFFFFFF and \
-				sub_image.atlas_y != 0xFFFFFFFF, "See file"
+		assert sub_image.atlas_x != 0xFFFFFFFF and sub_image.atlas_y != 0xFFFFFFFF, "See file"
 
-		atlas_img.paste(sub_image.image, \
-				(int(sub_image.atlas_x), int(sub_image.atlas_y)))
+		atlas_img.paste(sub_image.image, (int(sub_image.atlas_x), int(sub_image.atlas_y)))
 
 	printi("Saving atlas \"%s\"" % ctx.out_file)
 	atlas_img.save(ctx.out_file)
@@ -261,13 +262,16 @@ def write_xml(ctx):
 	fname = os.path.splitext(ctx.out_file)[0] + ".ankiatex"
 	printi("Writing XML \"%s\"" % fname)
 	f = open(fname, "w")
-	f.write("<atlasTexture>\n")
-	f.write("\t<texture>%s</texture>\n" % ctx.out_file)
-	f.write("\t<subImages>\n")
+	f.write("<?xml version=\"1.0\" encoding=\"UTF-8\" ?>\n")
+	f.write("<textureAtlas>\n")
+	out_filename = ctx.rpath + "/" + os.path.splitext(os.path.basename(ctx.out_file))[0] + ".ankitex"
+	f.write("\t<texture>%s</texture>\n" % out_filename)
+	f.write("\t<subTextureMargin>%u</subTextureMargin>\n" % ctx.margin)
+	f.write("\t<subTextures>\n")
 
 	for sub_image in ctx.sub_images:
-		f.write("\t\t<subImage>\n")
-		f.write("\t\t\t<name>%s</name>\n" % sub_image.image_name)
+		f.write("\t\t<subTexture>\n")
+		f.write("\t\t\t<name>%s</name>\n" % os.path.basename(sub_image.image_name))
 
 		# Now change coordinate system
 		left = sub_image.atlas_x / ctx.atlas_width
@@ -276,10 +280,10 @@ def write_xml(ctx):
 		bottom = top - (sub_image.height / ctx.atlas_height)
 
 		f.write("\t\t\t<uv>%f %f %f %f</uv>\n" % (left, bottom, right, top))
-		f.write("\t\t</subImage>\n")
+		f.write("\t\t</subTexture>\n")
 
-	f.write("\t</subImages>\n")
-	f.write("</atlasTexture>\n")
+	f.write("\t</subTextures>\n")
+	f.write("</textureAtlas>\n")
 
 def main():
 	""" The main """

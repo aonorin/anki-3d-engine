@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,7 +18,7 @@ layout(ANKI_TEX_BINDING(1, 0)) uniform sampler2D anki_msDepthRt;
 #define LIGHT_UBO_BINDING 0
 #define LIGHT_SS_BINDING 0
 #define LIGHT_TEX_BINDING 1
-#include "shaders/IsFsCommon.glsl"
+#include "shaders/ClusterLightCommon.glsl"
 
 #define anki_u_time u_lightingUniforms.rendererSizeTimePad1.z
 #define RENDERER_SIZE (u_lightingUniforms.rendererSizeTimePad1.xy * 0.5)
@@ -45,7 +45,7 @@ float getAlpha()
 #define writeGBuffer_DEFINED
 void writeGBuffer(in vec4 color)
 {
-	out_color = color;
+	out_color = vec4(color.rgb, 1.0 - color.a);
 }
 #endif
 
@@ -80,9 +80,9 @@ void particleSoftTextureAlpha(in sampler2D depthMap, in sampler2D tex, in float 
 
 #if PASS == COLOR
 #define particleTextureAlpha_DEFINED
-void particleTextureAlpha(in sampler2D tex, in float alpha)
+void particleTextureAlpha(in sampler2D tex, vec4 mulColor, vec4 addColor, in float alpha)
 {
-	vec4 color = texture(tex, gl_PointCoord);
+	vec4 color = texture(tex, gl_PointCoord) * mulColor + addColor;
 	color.a *= alpha;
 
 	writeGBuffer(color);
@@ -130,26 +130,24 @@ vec3 computeLightColor(vec3 diffCol)
 	}
 
 	// Find the cluster and then the light counts
-	uint idxOffset;
-	uint idx;
-	{
-		uint clusterIdx = computeClusterIndexUsingCustomFragCoord(u_lightingUniforms.nearFarClustererMagicPad1.x,
-			u_lightingUniforms.nearFarClustererMagicPad1.z,
-			fragPos.z,
-			u_lightingUniforms.tileCountPad1.x,
-			u_lightingUniforms.tileCountPad1.y,
-			gl_FragCoord.xy * 2.0);
+	uint clusterIdx = computeClusterIndex(gl_FragCoord.xy / RENDERER_SIZE,
+		u_lightingUniforms.nearFarClustererMagicPad1.x,
+		u_lightingUniforms.nearFarClustererMagicPad1.z,
+		fragPos.z,
+		u_lightingUniforms.tileCount.x,
+		u_lightingUniforms.tileCount.y);
 
-		idxOffset = u_clusters[clusterIdx];
-	}
+	uint idxOffset = u_clusters[clusterIdx];
+
+	// Skip decals
+	uint count = u_lightIndices[idxOffset];
+	idxOffset += count + 1;
 
 	// Point lights
-	uint count = u_lightIndices[idxOffset++];
+	count = u_lightIndices[idxOffset++];
 	while(count-- != 0)
 	{
-		PointLight light;
-		COPY_POINT_LIGHT(u_pointLights[u_lightIndices[idxOffset]], light);
-		++idxOffset;
+		PointLight light = u_pointLights[u_lightIndices[idxOffset++]];
 
 		vec3 diffC = computeDiffuseColor(diffCol, light.diffuseColorShadowmapId.rgb);
 
@@ -161,10 +159,13 @@ vec3 computeLightColor(vec3 diffCol)
 #else
 		float shadow = 1.0;
 		float shadowmapLayerIdx = light.diffuseColorShadowmapId.w;
-		if(light.diffuseColorShadowmapId.w < 128.0)
+		if(light.diffuseColorShadowmapId.w >= 0.0)
 		{
-			shadow = computeShadowFactorOmni(
-				frag2Light, shadowmapLayerIdx, -1.0 / light.posRadius.w, u_lightingUniforms.viewMat, u_omniMapArr);
+			shadow = computeShadowFactorOmni(frag2Light,
+				shadowmapLayerIdx,
+				light.specularColorRadius.w,
+				u_lightingUniforms.invViewRotation,
+				u_omniMapArr);
 		}
 #endif
 
@@ -175,9 +176,7 @@ vec3 computeLightColor(vec3 diffCol)
 	count = u_lightIndices[idxOffset++];
 	while(count-- != 0)
 	{
-		SpotLight light;
-		COPY_SPOT_LIGHT(u_spotLights[u_lightIndices[idxOffset]], light);
-		++idxOffset;
+		SpotLight light = u_spotLights[u_lightIndices[idxOffset++]];
 
 		vec3 diffC = computeDiffuseColor(diffCol, light.diffuseColorShadowmapId.rgb);
 
@@ -193,7 +192,7 @@ vec3 computeLightColor(vec3 diffCol)
 #else
 		float shadow = 1.0;
 		float shadowmapLayerIdx = light.diffuseColorShadowmapId.w;
-		if(shadowmapLayerIdx < 128.0)
+		if(shadowmapLayerIdx >= 0.0)
 		{
 			shadow = computeShadowFactorSpot(light.texProjectionMat, fragPos, shadowmapLayerIdx, 1, u_spotMapArr);
 		}
@@ -224,10 +223,10 @@ void particleTextureAlphaLight(in sampler2D tex, in float alpha)
 void particleAnimatedTextureAlphaLight(sampler2DArray tex, float alpha, float layerCount, float period)
 {
 	vec4 color = readAnimatedTextureRgba(tex, layerCount, period, gl_PointCoord, anki_u_time);
-	color.a *= alpha;
 
 	color.rgb = computeLightColor(color.rgb);
 
+	color.a *= alpha;
 	writeGBuffer(color);
 }
 #endif
@@ -252,8 +251,7 @@ void fog(in sampler2D depthMap, in vec3 color, in float fogScale)
 	}
 	else
 	{
-		// The depth buffer is cleared at this place. Set the diff to zero to
-		// avoid weird pop ups
+		// The depth buffer is cleared at this place. Set the diff to zero to avoid weird pop ups
 		diff = 0.0;
 	}
 

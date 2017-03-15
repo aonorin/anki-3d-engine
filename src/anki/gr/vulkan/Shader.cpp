@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -9,8 +9,8 @@
 namespace anki
 {
 
-Shader::Shader(GrManager* manager, U64 hash)
-	: GrObject(manager, CLASS_TYPE, hash)
+Shader::Shader(GrManager* manager, U64 hash, GrObjectCache* cache)
+	: GrObject(manager, CLASS_TYPE, hash, cache)
 {
 }
 
@@ -26,7 +26,7 @@ void Shader::init(ShaderType shaderType, const CString& source)
 
 	if(m_impl->init(shaderType, source))
 	{
-		ANKI_LOGF("Cannot recover");
+		ANKI_VK_LOGF("Cannot recover");
 	}
 }
 

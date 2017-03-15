@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -29,11 +29,11 @@ vec3 textureDistorted(in sampler2D tex,
 	in vec3 distortion) // per-channel distortion factor
 {
 #if ENABLE_CHROMATIC_DISTORTION
-	return vec3(textureRt(tex, texcoord + direction * distortion.r).r,
-		textureRt(tex, texcoord + direction * distortion.g).g,
-		textureRt(tex, texcoord + direction * distortion.b).b);
+	return vec3(texture(tex, texcoord + direction * distortion.r).r,
+		texture(tex, texcoord + direction * distortion.g).g,
+		texture(tex, texcoord + direction * distortion.b).b);
 #else
-	return textureRt(tex, texcoord).rgb;
+	return texture(tex, texcoord).rgb;
 #endif
 }
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -10,6 +10,7 @@
 #include <anki/Gr.h>
 #include <anki/resource/ResourceManager.h>
 #include <anki/resource/ShaderResource.h>
+#include <anki/core/StagingGpuMemoryManager.h>
 
 namespace anki
 {
@@ -39,6 +40,31 @@ anki_internal:
 
 	StackAllocator<U8> getFrameAllocator() const;
 
+	template<typename TPtr>
+	TPtr allocateUniforms(PtrSize size, StagingGpuMemoryToken& token)
+	{
+		return static_cast<TPtr>(allocateFrameStagingMemory(size, StagingGpuMemoryType::UNIFORM, token));
+	}
+
+	void bindUniforms(CommandBufferPtr& cmdb, U set, U binding, const StagingGpuMemoryToken& token) const;
+
+	template<typename TPtr>
+	TPtr allocateAndBindUniforms(PtrSize size, CommandBufferPtr& cmdb, U set, U binding)
+	{
+		StagingGpuMemoryToken token;
+		TPtr ptr = allocateUniforms<TPtr>(size, token);
+		bindUniforms(cmdb, set, binding, token);
+		return ptr;
+	}
+
+	template<typename TPtr>
+	TPtr allocateStorage(PtrSize size, StagingGpuMemoryToken& token)
+	{
+		return static_cast<TPtr>(allocateFrameStagingMemory(size, StagingGpuMemoryType::STORAGE, token));
+	}
+
+	void bindStorage(CommandBufferPtr& cmdb, U set, U binding, const StagingGpuMemoryToken& token) const;
+
 protected:
 	Renderer* m_r; ///< Know your father
 
@@ -46,6 +72,8 @@ protected:
 	const GrManager& getGrManager() const;
 
 	ResourceManager& getResourceManager();
+
+	void* allocateFrameStagingMemory(PtrSize size, StagingGpuMemoryType usage, StagingGpuMemoryToken& token);
 };
 /// @}
 

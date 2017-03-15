@@ -33,13 +33,23 @@ else()
 	message(FATAL_ERROR "Unknown system")
 endif()
 
+if(${CMAKE_C_COMPILER_ID} MATCHES "GNU" OR ${CMAKE_C_COMPILER_ID} MATCHES "Clang")
+	set(GCC TRUE)
+else()
+	set(GCC FALSE)
+endif()
+
+if(${CMAKE_C_COMPILER_ID} MATCHES "Clang")
+	set(CLANG TRUE)
+else()
+	set(CLANG FALSE)
+endif()
+
 ################################################################################
 # Configuration                                                                #
 ################################################################################
 
-option(ANKI_OPTIMIZE "Optimize" ON)
-option(ANKI_DEBUG_SYMBOLS "Debug symbols" OFF)
-option(ANKI_DEBUG "Debugging checks" OFF)
+option(ANKI_EXTRA_CHECKS "Debugging checks (assertions)" OFF)
 option(ANKI_LTO "LTO compilation" OFF)
 
 option(ANKI_BUILD_TOOLS "Build tools" OFF)
@@ -47,8 +57,6 @@ option(ANKI_BUILD_TESTS "Build unit tests" OFF)
 option(ANKI_BUILD_SANDBOX "Build sandbox application" ON)
 option(ANKI_BUILD_BENCH "Build benchmark application" OFF)
 option(ANKI_BUILD_SAMPLES "Build sample applications" ON)
-
-option(ANKI_WITH_GPERFTOOLS_PROF "Link with gperftools profiler" OFF)
 
 option(ANKI_STRIP "Srip the symbols from the executables" OFF)
 
@@ -62,12 +70,7 @@ endif()
 set(ANKI_CPU_ADDR_SPACE "0" CACHE STRING "The CPU architecture (0 or 32 or 64). If zero go native")
 
 option(ANKI_ENABLE_SIMD "Enable or not SIMD optimizations" ON)
-
-if(ANKI_ENABLE_SIMD)
-	set(_ANKI_ENABLE_SIMD 1)
-else()
-	set(_ANKI_ENABLE_SIMD 0)
-endif()
+option(ANKI_ADDRESS_SANITIZER "Enable address sanitizer (-fsanitize=address)" OFF)
 
 # Take a wild guess on the windowing system
 if(LINUX)
@@ -85,13 +88,6 @@ else()
 	message(FATAL_ERROR "Couldn't determine the window backend. You need to specify it manually")
 endif()
 
-# Extra directories
-set(ANKI_EXTRA_INCLUDE_DIRS CACHE STRING "Some extra include paths (Needed for some weird builds)")
-set(ANKI_EXTRA_LIB_DIRS CACHE STRING "Some extra lib paths (Needed for some weird builds)")
-
-# Valgrind
-option(ANKI_VALGRIND_HAPPY "Make valgrind happy" OFF)
-
 set(ANKI_GR_BACKEND "GL" CACHE STRING "The graphics API (GL or VULKAN)")
 
 if(${ANKI_GR_BACKEND} STREQUAL "GL")
@@ -102,6 +98,18 @@ else()
 	set(VULKAN TRUE)
 endif()
 
+if(NOT DEFINED CMAKE_BUILD_TYPE)
+	message(FATAL_ERROR "You need to define CMAKE_BUILD_TYPE")
+endif()
+
+if(${ANKI_CPU_ADDR_SPACE} STREQUAL "0" OR ${ANKI_CPU_ADDR_SPACE} STREQUAL "64")
+	set(ARCH_64 TRUE)
+	set(ARCH_32 FALSE)
+else()
+	set(ARCH_64 FALSE)
+	set(ARCH_32 TRUE)
+endif()
+
 ################################################################################
 # Compiler & linker flags                                                      #
 ################################################################################
@@ -110,23 +118,39 @@ set(CXX_FLAGS "")
 set(COMPILER_FLAGS "")
 set(LINKER_FLAGS "")
 
-# When building AnKi define this special flag
-set(COMPILER_FLAGS "${COMPILER_FLAGS} -DANKI_BUILD ")
+add_definitions(-D_NEWTON_STATIC_LIB -D_CUSTOM_JOINTS_STATIC_LIB)
 
-# address space
+if(ARCH_64)
+	add_definitions(-D_POSIX_VER_64)
+else()
+	add_definitions(-D_POSIX_VER_32)
+endif()
+
+# Newton wants that
+if(MINGW AND ARCH_64)
+	add_definitions(-D_MINGW_64_VER)
+elseif(MINGW AND ARCH_32)
+	add_definitions(-D_MINGW_32_VER)
+endif()
+
+add_definitions(-DGLEW_NO_GLU)
+add_definitions(-DSPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS)
+add_definitions(-DANKI_BUILD)
+
+# When building AnKi define this special flag
+set(COMPILER_FLAGS "${COMPILER_FLAGS} -fPIC ")
+
 if(NOT ANKI_CPU_ADDR_SPACE STREQUAL "0")
 	set(LINKER_FLAGS "${LINKER_FLAGS} -m${ANKI_CPU_ADDR_SPACE} ")
 	set(COMPILER_FLAGS "${COMPILER_FLAGS} -m${ANKI_CPU_ADDR_SPACE} ")
 endif()
 
-add_definitions(-fno-exceptions)
+set(COMPILER_FLAGS "${COMPILER_FLAGS} -fno-exceptions ")
 
-# static libstdc++
-if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
+if(GCC AND NOT CLANG)
 	set(CXX_FLAGS "${CXX_FLAGS} -static-libstdc++ ")
 endif()
 
-# SSE
 if(ANKI_ENABLE_SIMD)
 	if(LINUX OR MACOS OR WINDOWS)
 		set(COMPILER_FLAGS "${COMPILER_FLAGS} -msse4 ")
@@ -135,58 +159,42 @@ if(ANKI_ENABLE_SIMD)
 	endif()
 endif()
 
-# Add debug
-if(ANKI_DEBUG_SYMBOLS)
-	set(COMPILER_FLAGS "${COMPILER_FLAGS} -g3 ")
-endif()
-
-if(ANKI_DEBUG)
-	if(${CMAKE_C_COMPILER_ID} MATCHES "GNU")
-		set(COMPILER_FLAGS "${COMPILER_FLAGS} -fstack-check ")
-	endif()
-else()
-	set(COMPILER_FLAGS "${COMPILER_FLAGS} -DNODEBUG ")
-	set(CXX_FLAGS "${CXX_FLAGS} -fno-rtti ")
-endif()
-
-# Add optimization flags
-if(ANKI_OPTIMIZE)
-	set(COMPILER_FLAGS "${COMPILER_FLAGS} -ffast-math -O3 ")
-
-	# Add this because Android compiler complains
-	if(ANDROID)
-		set(COMPILER_FLAGS "${COMPILER_FLAGS} -fno-data-sections ")
-	endif()
-else()
-	set(COMPILER_FLAGS "${COMPILER_FLAGS} -O0 ")
-endif()
-
-# LTO
 if(ANKI_LTO)
 	set(COMPILER_FLAGS "${COMPILER_FLAGS} -flto ")
 	set(LINKER_FLAGS "${LINKER_FLAGS} -flto ")
 endif()
 
-# Valgrind hacks
-if(ANKI_VALGRIND_HAPPY)
-	add_definitions("-DGLIBCXX_FORCE_NEW")
-endif()
-
-# Disable GLU in GLEW
-add_definitions(-DGLEW_NO_GLU)
-
-# Strip
 if(ANKI_STRIP)
 	set(LINKER_FLAGS "${LINKER_FLAGS} -s ")
 	set(COMPILER_FLAGS "${COMPILER_FLAGS} -s ")
 endif()
 
-include_directories(${ANKI_EXTRA_INCLUDE_DIRS})
-link_directories(${ANKI_EXTRA_LIB_DIRS})
+if(ANKI_ADDRESS_SANITIZER)
+	set(COMPILER_FLAGS "${COMPILER_FLAGS} -fsanitize=address ")
+endif()
+
+if(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+	set(COMPILER_FLAGS "${COMPILER_FLAGS} -O3 -DNDEBUG ")
+
+	set(CMAKE_CXX_FLAGS_RELEASE "")
+	set(CMAKE_C_FLAGS_RELEASE "")
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+	set(COMPILER_FLAGS "${COMPILER_FLAGS} -O3 -g3 ")
+
+	set(CMAKE_CXX_FLAGS_RELWITHDBGINFO "")
+	set(CMAKE_C_FLAGS_RELWITHDBGINFO "")
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+	set(COMPILER_FLAGS "${COMPILER_FLAGS} -O0 -g3 ")
+
+	set(CMAKE_CXX_FLAGS_DEBUG "")
+	set(CMAKE_C_FLAGS_DEBUG "")
+else()
+	message(FATAL_ERROR "Wrong CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+endif()
 
 # Set the flags to cmake now
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX_FLAGS} ${COMPILER_FLAGS}")
-set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${COMPILER_FLAGS}")
+set(CMAKE_CXX_FLAGS "${CXX_FLAGS} ${COMPILER_FLAGS}")
+set(CMAKE_C_FLAGS "${COMPILER_FLAGS}")
 set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${LINKER_FLAGS}")
 
 ################################################################################
@@ -201,12 +209,14 @@ message("++ Lib install dir: ${LIB_INSTALL_DIR}")
 ################################################################################
 # Thirdparty                                                                   #
 ################################################################################
-include(ExternalProject)
-
 set(ANKI_EXTERN_SUB_DIRS tinyxml2 lua z newton)
 
 if((LINUX OR MACOS OR WINDOWS) AND GL)
 	set(ANKI_EXTERN_SUB_DIRS ${ANKI_EXTERN_SUB_DIRS} GLEW)
+endif()
+
+if(VULKAN)
+	set(ANKI_EXTERN_SUB_DIRS ${ANKI_EXTERN_SUB_DIRS} SPIRV-Cross)
 endif()
 
 if(ANKI_BUILD_TOOLS)
@@ -215,75 +225,32 @@ endif()
 
 # SDL
 if(SDL)
-	ExternalProject_Add(
-		SDL2_PROJECT
-		DOWNLOAD_COMMAND ""
-		PREFIX "${CMAKE_CURRENT_BINARY_DIR}/sdl2_build"
-		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/SDL2"
-		CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/sdl2_build -DSDL_SHARED=OFF -DSDL_STATIC=ON 
-		-DCMAKE_BUILD_TYPE=Release -DDIRECTX=OFF -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DVIDEO_MIR=OFF 
-		-DVIDEO_WAYLAND=OFF -DSNDIO=OFF -DVIDEO_OPENGLES=OFF)
+	message("++ Configuring SDL2")
+	add_subdirectory(thirdparty/SDL2)
+	message("++ End configuring SDL2")
 
-	ExternalProject_Get_Property(SDL2_PROJECT install_dir)
-	set(SDL2_INSTALL_DIR ${install_dir})
-
-	add_library(SDL2_LIB STATIC IMPORTED)
-	set_property(TARGET SDL2_LIB PROPERTY IMPORTED_LOCATION ${SDL2_INSTALL_DIR}/lib/libSDL2.a)
-	add_dependencies(SDL2_LIB SDL2_PROJECT)
+	# Include first the build directory. 
+	set(SDL2_INCLUDE_DIRS "${CMAKE_CURRENT_BINARY_DIR}/thirdparty/SDL2/include" 
+		"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/SDL2/include")
 else()
-	set(SDL2_INSTALL_DIR "")
+	set(SDL2_INCLUDE_DIRS "")
 endif()
 
 # freetype
-ExternalProject_Add(
-	FREETYPE_PROJECT
-	DOWNLOAD_COMMAND ""
-	PREFIX "${CMAKE_CURRENT_BINARY_DIR}/freetype_build"
-	SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/freetype"
-	CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/freetype_build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER})
+message("++ Configuring freetype")
+add_subdirectory(thirdparty/freetype)
+message("++ End configuring freetype")
 
-ExternalProject_Get_Property(FREETYPE_PROJECT install_dir)
-set(FREETYPE_INSTALL_DIR ${install_dir})
-add_library(FREETYPE_LIB STATIC IMPORTED)
-set_property(TARGET FREETYPE_LIB PROPERTY IMPORTED_LOCATION ${FREETYPE_INSTALL_DIR}/lib/libfreetype.a)
-add_dependencies(FREETYPE_LIB FREETYPE_PROJECT)
+# glslang
+if(VULKAN)
+	message("++ Configuring glslang")
+	add_subdirectory(thirdparty/glslang)
+	message("++ End configuring glslang")
+endif()
 
 foreach(TMP ${ANKI_EXTERN_SUB_DIRS})
 	add_subdirectory(thirdparty/${TMP})
 endforeach()
-
-# glslang
-if(VULKAN)
-	ExternalProject_Add(
-		GLSLANG_PROJECT
-		DOWNLOAD_COMMAND ""
-		PREFIX "${CMAKE_CURRENT_BINARY_DIR}/glslang_build"
-		SOURCE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glslang"
-		CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${CMAKE_CURRENT_BINARY_DIR}/glslang_build -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER} -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER})
-
-	ExternalProject_Get_Property(GLSLANG_PROJECT install_dir)
-	set(GLSLANG_INSTALL_DIR ${install_dir})
-
-	add_library(GLSLANG_LIB STATIC IMPORTED)
-	set_property(TARGET GLSLANG_LIB PROPERTY IMPORTED_LOCATION ${GLSLANG_INSTALL_DIR}/lib/libglslang.a)
-	add_dependencies(GLSLANG_LIB GLSLANG_PROJECT)
-
-	add_library(SPIRV_LIB STATIC IMPORTED)
-	set_property(TARGET SPIRV_LIB PROPERTY IMPORTED_LOCATION ${GLSLANG_INSTALL_DIR}/lib/libSPIRV.a)
-	add_dependencies(SPIRV_LIB GLSLANG_PROJECT)
-
-	add_library(OSD_LIB STATIC IMPORTED)
-	set_property(TARGET OSD_LIB PROPERTY IMPORTED_LOCATION ${GLSLANG_INSTALL_DIR}/lib/libOSDependent.a)
-	add_dependencies(OSD_LIB GLSLANG_PROJECT)
-
-	add_library(GLC_LIB STATIC IMPORTED)
-	set_property(TARGET GLC_LIB PROPERTY IMPORTED_LOCATION ${GLSLANG_INSTALL_DIR}/lib/libOGLCompiler.a)
-	add_dependencies(GLC_LIB GLSLANG_PROJECT)
-
-	add_library(HLSL_LIB STATIC IMPORTED)
-	set_property(TARGET HLSL_LIB PROPERTY IMPORTED_LOCATION ${GLSLANG_INSTALL_DIR}/lib/libHLSL.a)
-	add_dependencies(HLSL_LIB GLSLANG_PROJECT)
-endif()
 
 ################################################################################
 # AnKi                                                                         #
@@ -312,7 +279,8 @@ find_package(Doxygen)
 if(DOXYGEN_FOUND)
 	message("++ Doxygen found")
 
-	add_custom_target(doc ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doxyfile WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+	add_custom_target(doc ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/doxyfile 
+		WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 		COMMENT "Generating API documentation with Doxygen" VERBATIM)
 endif()
 
@@ -321,18 +289,51 @@ set(ANKI_VERSION_MAJOR 0)
 set(ANKI_VERSION_MINOR 1)
 message("++ AnKi version: ${ANKI_VERSION_MAJOR}.${ANKI_VERSION_MINOR}")
 
-if(ANKI_DEBUG)
-	set(ANKI_DEBUG 1)
+if(ANKI_EXTRA_CHECKS)
+	set(_ANKI_EXTRA_CHECKS 1)
 else()
-	set(ANKI_DEBUG 0)
+	set(_ANKI_EXTRA_CHECKS 0)
 endif()
 
-CONFIGURE_FILE("src/anki/Config.h.cmake" "${CMAKE_CURRENT_BINARY_DIR}/anki/Config.h")
-INSTALL(FILES "${CMAKE_CURRENT_BINARY_DIR}/anki/Config.h" DESTINATION "${INCLUDE_INSTALL_DIR}/anki")
+if(ANKI_ENABLE_SIMD)
+	set(_ANKI_ENABLE_SIMD 1)
+else()
+	set(_ANKI_ENABLE_SIMD 0)
+endif()
+
+if(${CMAKE_BUILD_TYPE} STREQUAL "Debug")
+	set(ANKI_DEBUG_SYMBOLS 1)
+	set(ANKI_OPTIMIZE 0)
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "Release")
+	set(ANKI_DEBUG_SYMBOLS 0)
+	set(ANKI_OPTIMIZE 1)
+elseif(${CMAKE_BUILD_TYPE} STREQUAL "RelWithDebInfo")
+	set(ANKI_DEBUG_SYMBOLS 1)
+	set(ANKI_OPTIMIZE 1)
+else()
+	message(FATAL_ERROR "Wrong CMAKE_BUILD_TYPE: ${CMAKE_BUILD_TYPE}")
+endif()
+
+configure_file("src/anki/Config.h.cmake" "${CMAKE_CURRENT_BINARY_DIR}/anki/Config.h")
+install(FILES "${CMAKE_CURRENT_BINARY_DIR}/anki/Config.h" DESTINATION "${INCLUDE_INSTALL_DIR}/anki")
 
 # Include & lib directories
-include_directories("src" "thirdparty/tinyxml2/include" "thirdparty/lua" "thirdparty/z"
-	"${SDL2_INSTALL_DIR}/include/SDL2/" "${FREETYPE_INSTALL_DIR}/include/freetype2/" "thirdparty/newton/newton" "${CMAKE_CURRENT_BINARY_DIR}" ${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glslang)
+include_directories("src" 
+	"thirdparty/tinyxml2/include" 
+	"thirdparty/lua" 
+	"thirdparty/z" 
+	"${SDL2_INCLUDE_DIRS}"
+	"thirdparty/freetype/include" 
+	"${CMAKE_CURRENT_BINARY_DIR}/thirdparty/freetype/include/freetype2"
+	"thirdparty/newton/coreLibrary_300/source/newton" 
+	"thirdparty/newton/packages/dCustomJoints"
+	"thirdparty/newton/packages/dContainers" 
+	"thirdparty/newton/packages/dMath" 
+	"thirdparty/newton/packages/thirdParty/timeTracker/"
+	"thirdparty/khronos" 
+	"${CMAKE_CURRENT_BINARY_DIR}" 
+	"${CMAKE_CURRENT_SOURCE_DIR}/thirdparty/glslang" 
+	"thirdparty")
 
 if(LINUX OR MACOS OR WINDOWS)
 	include_directories("thirdparty/GLEW/include")
@@ -345,7 +346,7 @@ if(ANDROID)
 endif()
 
 # AnKi compiler flags (Mainly warnings)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic -Wall -W -Wextra -Wstrict-aliasing -Wwrite-strings -Wunused -Wunused-variable -Wno-unused-parameter -Wundef -Wno-ignored-attributes -std=c++11 ")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pedantic -Wall -W -Wextra -Wstrict-aliasing -Wwrite-strings -Wunused -Wunused-variable -Wno-unused-parameter -Wundef -Wno-ignored-attributes -Wunused-result -std=c++11")
 
 # Set platform specific
 if(LINUX)
@@ -372,17 +373,17 @@ elseif(WINDOWS)
 	if(GL)
 		set(_SYS ankiglew opengl32)
 	else()
+		if(NOT DEFINED ENV{VULKAN_SDK})
+			message(FATAL_ERROR "You need to have VULKAN SDK installed and the VULKAN_SDK env variable set")
+		endif()
+
+		link_directories($ENV{VULKAN_SDK}/Bin)
 		set(_SYS vulkan-1)
 	endif()
 
-	set(_SYS ${_SYS} version Imm32 Winmm)
-	add_definitions(-DGLEW_STATIC -D_NEWTON_STATIC_LIB)
+	set(_SYS ${_SYS} version Imm32 Winmm DbgHelp)
 else()
 	message(FATAL_ERROR "Unhandled case")
-endif()
-
-if(SDL)
-	link_directories(${SDL2_INSTALL_DIR}/lib)
 endif()
 
 link_directories(${FREETYPE_INSTALL_DIR}/lib)
@@ -398,21 +399,12 @@ endforeach()
 
 add_library(anki src/anki/Dummy.cpp "${_SYS_SRC}")
 
-target_link_libraries(anki ${ANKI_LIBS} ankitinyxml2 ankilua ankiz ankinewton ${ANKI_GPERFTOOLS_LIBS} SDL2_LIB FREETYPE_LIB ${_SYS})
-
-if(VULKAN)
-#target_link_libraries(anki GLSLANG_LIB)
-endif()
-
-if(SDL)
-	target_link_libraries(anki SDL2_LIB)
-endif()
+target_link_libraries(anki ${ANKI_LIBS} ankitinyxml2 ankilua ankiz ${_SYS})
 
 ################################################################################
 # AnKi extra                                                                   #
 ################################################################################
 if(ANKI_BUILD_TESTS)
-	ENABLE_TESTING()
 	add_subdirectory(tests)
 endif()
 
@@ -430,27 +422,4 @@ endif()
 
 if(ANKI_BUILD_BENCH)
 	add_subdirectory(bench)
-endif()
-
-################################################################################
-# Android                                                                      #
-################################################################################
-if(${ANDROID})
-	# 1. generate Android.mk
-	FILE(WRITE ./jni/Android.mk "APP_ABI := ${ANDROID_NDK_ABI_NAME}\n")
-
-	# 2. generate gdb.setup
-	GET_DIRECTORY_PROPERTY(include_directories DIRECTORY . include_directories)
-	STRING(REGEX REPLACE ";" " " include_directories "${include_directories}")
-	FILE(WRITE ./libs/${ANDROID_NDK_ABI_NAME}/gdb.setup "set solib-search-path ./libs/${ANDROID_NDK_ABI_NAME}\n")
-	FILE(APPEND ./libs/${ANDROID_NDK_ABI_NAME}/gdb.setup "directory ${include_directories} ${CMAKE_CURRENT_SOURCE_DIR}/src ${CMAKE_CURRENT_SOURCE_DIR}\n")
-
-	# 3. copy gdbserver executable
-	FILE(COPY ${ANDROID_NDK}/prebuilt/android-arm/gdbserver/gdbserver DESTINATION ${CMAKE_CURRENT_SOURCE_DIR}/libs/${ANDROID_NDK_ABI_NAME}/)
-
-	set(LIBRARY_NAME ankibench)
-
-	# 4. copy lib to obj
-	#ADD_CUSTOM_COMMAND(TARGET ${LIBRARY_NAME} POST_BUILD COMMAND mkdir -p ./obj/local/${ANDROID_NDK_ABI_NAME}/)
-	#ADD_CUSTOM_COMMAND(TARGET ${LIBRARY_NAME} POST_BUILD COMMAND cp ./libs/${ANDROID_NDK_ABI_NAME}/lib${LIBRARY_NAME}.so ./obj/local/${ANDROID_NDK_ABI_NAME}/)
 endif()

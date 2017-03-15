@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -67,7 +67,7 @@ public:
 				return;
 			}
 
-			m_ang = getPi<T>();
+			m_ang = PI;
 			m_axis.x() = (m3(0, 0) + 1.0) / 2.0;
 			if(m_axis.x() > 0.0)
 			{

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -28,19 +28,20 @@ MainRenderer::MainRenderer()
 
 MainRenderer::~MainRenderer()
 {
-	ANKI_LOGI("Destroying main renderer");
+	ANKI_R_LOGI("Destroying main renderer");
 	m_materialShaderSource.destroy(m_alloc);
 }
 
 Error MainRenderer::create(ThreadPool* threadpool,
 	ResourceManager* resources,
 	GrManager* gr,
+	StagingGpuMemoryManager* stagingMem,
 	AllocAlignedCallback allocCb,
 	void* allocCbUserData,
 	const ConfigSet& config,
 	Timestamp* globTimestamp)
 {
-	ANKI_LOGI("Initializing main renderer");
+	ANKI_R_LOGI("Initializing main renderer");
 
 	m_alloc = HeapAllocator<U8>(allocCb, allocCbUserData);
 	m_frameAlloc = StackAllocator<U8>(allocCb, allocCbUserData, 1024 * 1024 * 10, 1.0);
@@ -57,8 +58,6 @@ Error MainRenderer::create(ThreadPool* threadpool,
 	ConfigSet config2 = config;
 	m_renderingQuality = config.getNumber("renderingQuality");
 	UVec2 size(m_renderingQuality * F32(m_width), m_renderingQuality * F32(m_height));
-	size.x() = getAlignedRoundDown(TILE_SIZE, size.x() / 2) * 2;
-	size.y() = getAlignedRoundDown(TILE_SIZE, size.y() / 2) * 2;
 
 	config2.set("width", size.x());
 	config2.set("height", size.y());
@@ -66,35 +65,26 @@ Error MainRenderer::create(ThreadPool* threadpool,
 	m_rDrawToDefaultFb = m_renderingQuality == 1.0;
 
 	m_r.reset(m_alloc.newInstance<Renderer>());
-	ANKI_CHECK(m_r->init(threadpool, resources, gr, m_alloc, m_frameAlloc, config2, globTimestamp, m_rDrawToDefaultFb));
+	ANKI_CHECK(m_r->init(
+		threadpool, resources, gr, stagingMem, m_alloc, m_frameAlloc, config2, globTimestamp, m_rDrawToDefaultFb));
 
 	// Set the default preprocessor string
 	m_materialShaderSource.sprintf(m_alloc,
 		"#define ANKI_RENDERER_WIDTH %u\n"
-		"#define ANKI_RENDERER_HEIGHT %u\n"
-		"#define TILE_SIZE %u\n",
+		"#define ANKI_RENDERER_HEIGHT %u\n",
 		m_r->getWidth(),
-		m_r->getHeight(),
-		TILE_SIZE);
+		m_r->getHeight());
 
 	// Init other
 	if(!m_rDrawToDefaultFb)
 	{
 		ANKI_CHECK(m_r->getResourceManager().loadResource("shaders/Final.frag.glsl", m_blitFrag));
+		m_r->createDrawQuadShaderProgram(m_blitFrag->getGrShader(), m_blitProg);
 
-		ColorStateInfo colorState;
-		colorState.m_attachmentCount = 1;
-		colorState.m_attachments[0].m_format.m_components = ComponentFormat::DEFAULT_FRAMEBUFFER;
-		m_r->createDrawQuadPipeline(m_blitFrag->getGrShader(), colorState, m_blitPpline);
-
-		// Init RC group
-		ResourceGroupInitInfo rcinit;
-		rcinit.m_textures[0].m_texture = m_r->getPps().getRt();
-		m_rcGroup = m_r->getGrManager().newInstance<ResourceGroup>(rcinit);
-		ANKI_LOGI("The main renderer will have to blit the offscreen renderer's result");
+		ANKI_R_LOGI("The main renderer will have to blit the offscreen renderer's result");
 	}
 
-	ANKI_LOGI("Main renderer initialized. Rendering size %ux%u", m_width, m_height);
+	ANKI_R_LOGI("Main renderer initialized. Rendering size %ux%u", m_width, m_height);
 
 	return ErrorCode::NONE;
 }
@@ -108,11 +98,10 @@ Error MainRenderer::render(SceneGraph& scene)
 
 	GrManager& gl = m_r->getGrManager();
 	CommandBufferInitInfo cinf;
+	cinf.m_flags =
+		CommandBufferFlag::COMPUTE_WORK | CommandBufferFlag::GRAPHICS_WORK | CommandBufferFlag::TRANSFER_WORK;
 	cinf.m_hints = m_cbInitHints;
 	CommandBufferPtr cmdb = gl.newInstance<CommandBuffer>(cinf);
-
-	// Set some of the dynamic state
-	cmdb->setPolygonOffset(0.0, 0.0);
 
 	// Run renderer
 	RenderingContext ctx(m_frameAlloc);
@@ -125,7 +114,15 @@ Error MainRenderer::render(SceneGraph& scene)
 	}
 
 	ctx.m_commandBuffer = cmdb;
-	ctx.m_frustumComponent = &scene.getActiveCamera().getComponent<FrustumComponent>();
+	const FrustumComponent& frc = scene.getActiveCamera().getComponent<FrustumComponent>();
+	ctx.m_visResults = &frc.getVisibilityTestResults();
+	ctx.m_viewMat = frc.getViewMatrix();
+	ctx.m_projMat = frc.getProjectionMatrix();
+	ctx.m_viewProjMat = frc.getViewProjectionMatrix();
+	ctx.m_camTrfMat = Mat4(frc.getFrustum().getTransform());
+	ctx.m_near = frc.getFrustum().getNear();
+	ctx.m_far = frc.getFrustum().getFar();
+	ctx.m_unprojParams = ctx.m_projMat.extractPerspectiveUnprojectionParams();
 	ANKI_CHECK(m_r->render(ctx));
 
 	// Blit renderer's result to default FB if needed
@@ -134,8 +131,8 @@ Error MainRenderer::render(SceneGraph& scene)
 		cmdb->beginRenderPass(m_defaultFb);
 		cmdb->setViewport(0, 0, m_width, m_height);
 
-		cmdb->bindPipeline(m_blitPpline);
-		cmdb->bindResourceGroup(m_rcGroup, 0, nullptr);
+		cmdb->bindShaderProgram(m_blitProg);
+		cmdb->bindTexture(0, 0, m_r->getPps().getRt());
 
 		m_r->drawQuad(cmdb);
 		cmdb->endRenderPass();

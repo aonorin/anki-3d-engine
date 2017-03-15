@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -22,7 +22,7 @@ public:
 	BufferUsageBit m_usage = BufferUsageBit::NONE;
 	BufferMapAccessBit m_access = BufferMapAccessBit::NONE;
 	GLenum m_target = GL_NONE; ///< A guess
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 	Bool m_mapped = false;
 #endif
 
@@ -38,20 +38,28 @@ public:
 
 	void init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit access);
 
-	void bind(GLenum target, U32 binding, PtrSize offset, PtrSize size) const
+	void bind(GLenum target, U32 binding, PtrSize offset, PtrSize range) const
 	{
 		ANKI_ASSERT(isCreated());
-		ANKI_ASSERT(offset + size <= m_size);
-		ANKI_ASSERT(size > 0);
-		glBindBufferRange(target, binding, m_glName, offset, size);
+
+		range = (range == MAX_PTR_SIZE) ? (m_size - offset) : range;
+		ANKI_ASSERT(range > 0);
+		ANKI_ASSERT(offset + range <= m_size);
+
+		glBindBufferRange(target, binding, m_glName, offset, range);
 	}
 
-	void write(const void* buff, U32 offset, U32 size) const
+	void bind(GLenum target, U32 binding, PtrSize offset) const
+	{
+		bind(target, binding, offset, MAX_PTR_SIZE);
+	}
+
+	void write(GLuint pbo, U32 pboOffset, U32 offset, U32 size) const
 	{
 		ANKI_ASSERT(isCreated());
 		ANKI_ASSERT(offset + size <= m_size);
-		glBindBuffer(m_target, m_glName);
-		glBufferSubData(m_target, offset, size, buff);
+
+		glCopyNamedBufferSubData(pbo, m_glName, pboOffset, offset, size);
 	}
 
 	void fill(PtrSize offset, PtrSize size, U32 value)

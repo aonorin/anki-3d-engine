@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,12 +15,12 @@ ScriptManager::ScriptManager()
 
 ScriptManager::~ScriptManager()
 {
-	ANKI_LOGI("Destroying scripting engine...");
+	ANKI_SCRIPT_LOGI("Destroying scripting engine...");
 }
 
 Error ScriptManager::init(AllocAlignedCallback allocCb, void* allocCbData, SceneGraph* scene, MainRenderer* renderer)
 {
-	ANKI_LOGI("Initializing scripting engine...");
+	ANKI_SCRIPT_LOGI("Initializing scripting engine...");
 
 	m_scene = scene;
 	m_r = renderer;

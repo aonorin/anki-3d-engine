@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -53,7 +53,7 @@ Light::~Light()
 {
 }
 
-Error Light::init(LightComponent::LightType type, CollisionShape* shape)
+Error Light::init(LightComponentType type, CollisionShape* shape)
 {
 	SceneComponent* comp;
 
@@ -157,7 +157,7 @@ PointLight::~PointLight()
 
 Error PointLight::init()
 {
-	return Light::init(LightComponent::LightType::POINT, &m_sphereW);
+	return Light::init(LightComponentType::POINT, &m_sphereW);
 }
 
 void PointLight::onMoveUpdate(MoveComponent& move)
@@ -205,7 +205,6 @@ Error PointLight::frameUpdate(F32 prevUpdateTime, F32 crntTime)
 		const F32 zNear = LightComponent::FRUSTUM_NEAR_PLANE;
 
 		Mat3 rot;
-		const F32 PI = getPi<F32>();
 
 		rot = Mat3(Euler(0.0, -PI / 2.0, 0.0)) * Mat3(Euler(0.0, 0.0, PI));
 		m_shadowData[0].m_localTrf.setRotation(Mat3x4(rot));
@@ -248,7 +247,7 @@ SpotLight::SpotLight(SceneGraph* scene, CString name)
 
 Error SpotLight::init()
 {
-	ANKI_CHECK(Light::init(LightComponent::LightType::SPOT, &m_frustum));
+	ANKI_CHECK(Light::init(LightComponentType::SPOT, &m_frustum));
 
 	FrustumComponent* fr = getSceneAllocator().newInstance<FrustumComponent>(this, &m_frustum);
 	fr->setEnabledVisibilityTests(FrustumComponentVisibilityTestFlag::NONE);

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -45,14 +45,14 @@ public:
 		if(test > 0.499)
 		{
 			y() = 2.0 * atan2<T>(q.x(), q.w());
-			z() = getPi<T>() / 2.0;
+			z() = PI / 2.0;
 			x() = 0.0;
 			return;
 		}
 		if(test < -0.499)
 		{
 			y() = -2.0 * atan2<T>(q.x(), q.w());
-			z() = -getPi<T>() / 2.0;
+			z() = -PI / 2.0;
 			x() = 0.0;
 			return;
 		}

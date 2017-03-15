@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -22,6 +22,7 @@ public:
 	static const SceneComponentType CLASS_TYPE = SceneComponentType::DECAL;
 
 	static constexpr F32 FRUSTUM_NEAR_PLANE = 0.1 / 4.0;
+	static constexpr U ATLAS_SUB_TEXTURE_MARGIN = 16;
 
 	DecalComponent(SceneNode* node);
 
@@ -30,6 +31,11 @@ public:
 	ANKI_USE_RESULT Error setDiffuseDecal(CString texAtlasFname, CString texAtlasSubtexName, F32 blendFactor)
 	{
 		return setLayer(texAtlasFname, texAtlasSubtexName, blendFactor, LayerType::DIFFUSE);
+	}
+
+	ANKI_USE_RESULT Error setNormalRoughnessDecal(CString texAtlasFname, CString texAtlasSubtexName, F32 blendFactor)
+	{
+		return setLayer(texAtlasFname, texAtlasSubtexName, blendFactor, LayerType::NORMAL_ROUGHNESS);
 	}
 
 	/// Update the internal structures.
@@ -75,10 +81,42 @@ public:
 		return ErrorCode::NONE;
 	}
 
+	const Mat4& getBiasProjectionViewMatrix() const
+	{
+		return m_biasProjViewMat;
+	}
+
+	void getDiffuseAtlasInfo(Vec4& uv, TexturePtr& tex, F32& blendFactor) const
+	{
+		uv = m_layers[LayerType::DIFFUSE].m_uv;
+		tex = m_layers[LayerType::DIFFUSE].m_atlas->getGrTexture();
+		blendFactor = m_layers[LayerType::DIFFUSE].m_blendFactor;
+	}
+
+	void getNormalRoughnessAtlasInfo(Vec4& uv, TexturePtr& tex, F32& blendFactor) const
+	{
+		uv = m_layers[LayerType::NORMAL_ROUGHNESS].m_uv;
+		if(m_layers[LayerType::NORMAL_ROUGHNESS].m_atlas)
+		{
+			tex = m_layers[LayerType::NORMAL_ROUGHNESS].m_atlas->getGrTexture();
+		}
+		else
+		{
+			tex.reset(nullptr);
+		}
+		blendFactor = m_layers[LayerType::NORMAL_ROUGHNESS].m_blendFactor;
+	}
+
+	const Vec3& getVolumeSize() const
+	{
+		return m_sizes;
+	}
+
 private:
 	enum class LayerType
 	{
 		DIFFUSE,
+		NORMAL_ROUGHNESS,
 		COUNT
 	};
 

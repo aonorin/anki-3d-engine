@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -22,6 +22,59 @@ class PhysicsCollisionShape;
 
 /// @addtogroup resource
 /// @{
+
+class VertexBufferBinding
+{
+public:
+	BufferPtr m_buffer;
+	PtrSize m_offset;
+	PtrSize m_stride;
+
+	Bool operator==(const VertexBufferBinding& b) const
+	{
+		return m_buffer == b.m_buffer && m_offset == b.m_offset && m_stride == b.m_stride;
+	}
+
+	Bool operator!=(const VertexBufferBinding& b) const
+	{
+		return !(*this == b);
+	}
+};
+
+class VertexAttributeInfo
+{
+public:
+	U32 m_bufferBinding;
+	PixelFormat m_format;
+	PtrSize m_relativeOffset;
+
+	Bool operator==(const VertexAttributeInfo& b) const
+	{
+		return m_bufferBinding == b.m_bufferBinding && m_format == b.m_format && m_relativeOffset == b.m_relativeOffset;
+	}
+
+	Bool operator!=(const VertexAttributeInfo& b) const
+	{
+		return !(*this == b);
+	}
+};
+
+class ModelRenderingInfo
+{
+public:
+	Array<U32, MAX_SUB_DRAWCALLS> m_indicesCountArray;
+	Array<PtrSize, MAX_SUB_DRAWCALLS> m_indicesOffsetArray;
+	U32 m_drawcallCount;
+
+	ShaderProgramPtr m_program;
+
+	Array<VertexBufferBinding, MAX_VERTEX_ATTRIBUTES> m_vertexBufferBindings;
+	U32 m_vertexBufferBindingCount;
+	Array<VertexAttributeInfo, MAX_VERTEX_ATTRIBUTES> m_vertexAttributes;
+	U32 m_vertexAttributeCount;
+
+	BufferPtr m_indexBuffer;
+};
 
 /// Model patch interface class. Its very important class and it binds the material with the mesh
 class ModelPatch
@@ -66,32 +119,17 @@ public:
 
 	/// Get information for multiDraw rendering. Given an array of submeshes that are visible return the correct indices
 	/// offsets and counts.
-	void getRenderingDataSub(const RenderingKey& key,
-		WeakArray<U8> subMeshIndicesArray,
-		ResourceGroupPtr& resourceGroup,
-		PipelinePtr& ppline,
-		Array<U32, ANKI_GL_MAX_SUB_DRAWCALLS>& indicesCountArray,
-		Array<PtrSize, ANKI_GL_MAX_SUB_DRAWCALLS>& indicesOffsetArray,
-		U32& drawcallCount) const;
+	void getRenderingDataSub(const RenderingKey& key, WeakArray<U8> subMeshIndicesArray, ModelRenderingInfo& inf) const;
 
 private:
-	Model* m_model ANKI_DBG_NULLIFY_PTR;
+	Model* m_model ANKI_DBG_NULLIFY;
 
 	Array<MeshResourcePtr, MAX_LODS> m_meshes; ///< One for each LOD
 	U8 m_meshCount = 0;
 	MaterialResourcePtr m_mtl;
 
-	mutable Array4d<PipelinePtr, U(Pass::COUNT), MAX_LODS, 2, MAX_INSTANCE_GROUPS> m_pplines;
-	mutable Mutex m_lock; ///< Protect m_pplines
-
-	Array<ResourceGroupPtr, MAX_LODS> m_grResources;
-
 	/// Return the maximum number of LODs
 	U getLodCount() const;
-
-	PipelinePtr getPipeline(const RenderingKey& key) const;
-
-	void computePipelineInitInfo(const RenderingKey& key, PipelineInitInfo& pinit) const;
 };
 
 /// Model is an entity that acts as a container for other resources. Models are all the non static objects in a map.

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -27,6 +27,7 @@ class Input;
 class SectorGroup;
 class ConfigSet;
 class PerspectiveCamera;
+class UpdateSceneNodesCtx;
 
 /// @addtogroup scene
 /// @{
@@ -35,6 +36,7 @@ class PerspectiveCamera;
 class SceneGraph
 {
 	friend class SceneNode;
+	friend class UpdateSceneNodesTask;
 
 public:
 	SceneGraph();
@@ -166,6 +168,11 @@ anki_internal:
 		return *m_physics;
 	}
 
+	const PhysicsWorld& getPhysicsWorld() const
+	{
+		return *m_physics;
+	}
+
 	const Input& getInput() const
 	{
 		ANKI_ASSERT(m_input);
@@ -234,6 +241,9 @@ private:
 
 	/// Delete the nodes that are marked for deletion
 	void deleteNodesMarkedForDeletion();
+
+	ANKI_USE_RESULT Error updateNodes(UpdateSceneNodesCtx& ctx) const;
+	ANKI_USE_RESULT static Error updateNode(F32 prevTime, F32 crntTime, SceneNode& node);
 };
 
 template<typename Node, typename... Args>
@@ -259,7 +269,7 @@ inline Error SceneGraph::newSceneNode(const CString& name, Node*& node, Args&&..
 
 	if(err)
 	{
-		ANKI_LOGE("Failed to create scene node: %s", (name.isEmpty()) ? "unnamed" : &name[0]);
+		ANKI_SCENE_LOGE("Failed to create scene node: %s", (name.isEmpty()) ? "unnamed" : &name[0]);
 
 		if(node)
 		{

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -14,37 +14,10 @@
 #include <anki/util/File.h>
 #include <anki/util/Filesystem.h>
 #include <anki/misc/Xml.h>
-#include <anki/renderer/Ms.h>
 #include <algorithm>
 
 namespace anki
 {
-
-/// Visit the textures to bind them
-class UpdateTexturesVisitor
-{
-public:
-	ResourceGroupInitInfo* m_init = nullptr;
-	ResourceManager* m_manager = nullptr;
-
-	template<typename TMaterialVariableTemplate>
-	Error visit(const TMaterialVariableTemplate& var)
-	{
-		// Do nothing
-		return ErrorCode::NONE;
-	}
-};
-
-// Specialize for texture
-template<>
-Error UpdateTexturesVisitor::visit<MaterialVariableTemplate<TextureResourcePtr>>(
-	const MaterialVariableTemplate<TextureResourcePtr>& var)
-{
-	m_init->m_textures[var.getTextureUnit()].m_texture = var.getValue()->getGrTexture();
-	m_init->m_textures[var.getTextureUnit()].m_usage =
-		TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION;
-	return ErrorCode::NONE;
-}
 
 template<typename T>
 Error MaterialVariableTemplate<T>::init(U idx, const MaterialLoader::Input& in, Material& mtl)
@@ -67,7 +40,7 @@ Error MaterialVariableTemplate<T>::init(U idx, const MaterialLoader::Input& in, 
 
 		if(in.m_value.getSize() != floatsNeeded)
 		{
-			ANKI_LOGE("Incorrect number of values. Variable %s", &in.m_name[0]);
+			ANKI_RESOURCE_LOGE("Incorrect number of values. Variable %s", &in.m_name[0]);
 			return ErrorCode::USER_DATA;
 		}
 
@@ -174,6 +147,7 @@ Error MaterialVariant::init(const RenderingKey& key2, Material& mtl, MaterialLoa
 	//
 	// Shaders
 	//
+	Array<ShaderPtr, 5> shaders;
 	for(ShaderType stype = ShaderType::VERTEX; stype <= ShaderType::FRAGMENT; ++stype)
 	{
 		if(stype == ShaderType::GEOMETRY)
@@ -192,13 +166,21 @@ Error MaterialVariant::init(const RenderingKey& key2, Material& mtl, MaterialLoa
 		StringAuto filename(mtl.getTempAllocator());
 		ANKI_CHECK(mtl.createProgramSourceToCache(src, stype, filename));
 
-		ShaderResourcePtr& shader = m_shaders[U(stype)];
+		ShaderResourcePtr& shader = m_shaders[stype];
 
 		ANKI_CHECK(mtl.getManager().loadResource(filename.toCString(), shader));
+
+		shaders[stype] = shader->getGrShader();
 
 		// Update the hash
 		mtl.m_hash ^= computeHash(&src[0], src.getLength());
 	}
+
+	m_prog = mtl.getManager().getGrManager().newInstance<ShaderProgram>(shaders[ShaderType::VERTEX],
+		shaders[ShaderType::TESSELLATION_CONTROL],
+		shaders[ShaderType::TESSELLATION_EVALUATION],
+		shaders[ShaderType::GEOMETRY],
+		shaders[ShaderType::FRAGMENT]);
 
 	return ErrorCode::NONE;
 }
@@ -227,8 +209,11 @@ Material::~Material()
 
 	for(MaterialVariable* var : m_vars)
 	{
-		var->destroy(alloc);
-		alloc.deleteInstance(var);
+		if(var)
+		{
+			var->destroy(alloc);
+			alloc.deleteInstance(var);
+		}
 	}
 	m_vars.destroy(alloc);
 }
@@ -265,17 +250,18 @@ Error Material::createVars(const MaterialLoader& loader)
 
 	auto alloc = getAllocator();
 	m_vars.create(alloc, count);
+	memset(&m_vars[0], 0, count * sizeof(m_vars[0]));
 
 	// Find the name
 	count = 0;
 	err = loader.iterateAllInputVariables([&](const MaterialLoader::Input& in) -> Error {
-		MaterialVariable* mtlvar = nullptr;
 
 #define ANKI_INIT_VAR(type_)                                                                                           \
 	{                                                                                                                  \
 		MaterialVariableTemplate<type_>* var = alloc.newInstance<MaterialVariableTemplate<type_>>();                   \
+		m_vars[count] = var;                                                                                           \
 		ANKI_CHECK(var->init(count, in, *this));                                                                       \
-		mtlvar = var;                                                                                                  \
+		++count;                                                                                                       \
 	}
 
 		switch(in.m_type)
@@ -309,8 +295,6 @@ Error Material::createVars(const MaterialLoader& loader)
 
 #undef ANKI_INIT_VAR
 
-		m_vars[count] = mtlvar;
-		++count;
 		return ErrorCode::NONE;
 	});
 
@@ -396,22 +380,6 @@ Error Material::createProgramSourceToCache(const String& source, ShaderType type
 	}
 
 	return ErrorCode::NONE;
-}
-
-void Material::fillResourceGroupInitInfo(ResourceGroupInitInfo& rcinit)
-{
-	rcinit.m_uniformBuffers[0].m_uploadedMemory = true;
-	rcinit.m_uniformBuffers[0].m_usage = BufferUsageBit::UNIFORM_FRAGMENT | BufferUsageBit::UNIFORM_VERTEX;
-
-	UpdateTexturesVisitor visitor;
-	visitor.m_init = &rcinit;
-	visitor.m_manager = &getManager();
-
-	for(const auto& var : m_vars)
-	{
-		Error err = var->acceptVisitor(visitor);
-		(void)err;
-	}
 }
 
 const MaterialVariant& Material::getVariant(const RenderingKey& key) const

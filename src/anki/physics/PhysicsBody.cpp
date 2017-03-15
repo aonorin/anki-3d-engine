@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -34,7 +34,7 @@ PhysicsBody::~PhysicsBody()
 Error PhysicsBody::create(const PhysicsBodyInitInfo& init)
 {
 	// Create
-	Mat4 trf = toNewton(Mat4(init.m_startTrf));
+	dMatrix trf = toNewton(Mat4(init.m_startTrf));
 
 	if(init.m_static)
 	{
@@ -45,7 +45,7 @@ Error PhysicsBody::create(const PhysicsBodyInitInfo& init)
 		m_sceneCollisionProxy = NewtonSceneCollisionAddSubCollision(scene, init.m_shape->getNewtonShape());
 		NewtonSceneCollisionEndAddRemove(scene);
 
-		NewtonSceneCollisionSetSubCollisionMatrix(scene, m_sceneCollisionProxy, &trf[0]);
+		NewtonSceneCollisionSetSubCollisionMatrix(scene, m_sceneCollisionProxy, &trf[0][0]);
 
 		return ErrorCode::NONE;
 	}
@@ -55,12 +55,12 @@ Error PhysicsBody::create(const PhysicsBodyInitInfo& init)
 	}
 	else
 	{
-		m_body = NewtonCreateDynamicBody(m_world->getNewtonWorld(), init.m_shape->getNewtonShape(), &trf(0, 0));
+		m_body = NewtonCreateDynamicBody(m_world->getNewtonWorld(), init.m_shape->getNewtonShape(), &trf[0][0]);
 	}
 
 	if(!m_body)
 	{
-		ANKI_LOGE("NewtonCreateXXBody() failed");
+		ANKI_PHYS_LOGE("NewtonCreateXXBody() failed");
 		return ErrorCode::FUNCTION_FAILED;
 	}
 
@@ -118,7 +118,7 @@ void PhysicsBody::applyGravityForce(const NewtonBody* body, dFloat timestep, int
 	dFloat Izz;
 	dFloat mass;
 
-	NewtonBodyGetMassMatrix(body, &mass, &Ixx, &Iyy, &Izz);
+	NewtonBodyGetMass(body, &mass, &Ixx, &Iyy, &Izz);
 
 	const F32 GRAVITY = -9.8;
 	Vec4 force(0.0, mass * GRAVITY, 0.0, 0.0);

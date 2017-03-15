@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -13,7 +13,7 @@ namespace anki
 
 static int luaPanic(lua_State* l)
 {
-	ANKI_LOGE("Lua panic attack: %s", lua_tostring(l, -1));
+	ANKI_SCRIPT_LOGE("Lua panic attack: %s", lua_tostring(l, -1));
 	abort();
 }
 
@@ -97,7 +97,7 @@ Error LuaBinder::evalString(const CString& str)
 	int e = luaL_dostring(m_l, &str[0]);
 	if(e)
 	{
-		ANKI_LOGE("%s", lua_tostring(m_l, -1));
+		ANKI_SCRIPT_LOGE("%s (line:%d)", lua_tostring(m_l, -1));
 		lua_pop(m_l, 1);
 		err = ErrorCode::USER_DATA;
 	}

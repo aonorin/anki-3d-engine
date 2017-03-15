@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -9,10 +9,18 @@
 #include <anki/util/Enum.h>
 #include <anki/util/Ptr.h>
 #include <anki/Math.h>
+
+// Common newton libs
 #include <Newton.h>
+#include <dLinearAlgebra.h>
 
 namespace anki
 {
+
+#define ANKI_PHYS_LOGI(...) ANKI_LOG("PHYS", NORMAL, __VA_ARGS__)
+#define ANKI_PHYS_LOGE(...) ANKI_LOG("PHYS", ERROR, __VA_ARGS__)
+#define ANKI_PHYS_LOGW(...) ANKI_LOG("PHYS", WARNING, __VA_ARGS__)
+#define ANKI_PHYS_LOGF(...) ANKI_LOG("PHYS", FATAL, __VA_ARGS__)
 
 // Forward
 class PhysicsObject;
@@ -51,28 +59,26 @@ enum class PhysicsMaterialBit : U16
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(PhysicsMaterialBit, inline)
 
-/// Convert newton to AnKi.
-ANKI_USE_RESULT inline Quat toAnki(const Quat& q)
+ANKI_USE_RESULT inline Vec4 toAnki(const dVector& v)
 {
-	return Quat(q.y(), q.z(), q.w(), q.x());
+	return Vec4(v.m_x, v.m_y, v.m_z, v.m_w);
 }
 
-/// Convert AnKi to Newton.
-ANKI_USE_RESULT inline Quat toNewton(const Quat& q)
+ANKI_USE_RESULT inline dVector toNewton(const Vec4& v)
 {
-	return Quat(q.w(), q.x(), q.y(), q.z());
+	return dVector(v.x(), v.y(), v.z(), v.w());
 }
 
-/// Convert newton to AnKi.
-ANKI_USE_RESULT inline Mat4 toAnki(const Mat4& m)
+ANKI_USE_RESULT inline Mat4 toAnki(const dMatrix& m)
 {
-	return m.getTransposed();
+	Mat4 ak(*reinterpret_cast<const Mat4*>(&m));
+	return ak.getTransposed();
 }
 
-/// Convert AnKi to Newton.
-ANKI_USE_RESULT inline Mat4 toNewton(const Mat4& m)
+ANKI_USE_RESULT inline dMatrix toNewton(const Mat4& m)
 {
-	return m.getTransposed();
+	Mat4 transp = m.getTransposed();
+	return dMatrix(&transp(0, 0));
 }
 /// @}
 

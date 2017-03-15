@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -12,8 +12,9 @@
 #define ANKI_VERSION_MAJOR ${ANKI_VERSION_MAJOR}
 #define ANKI_REVISION ${ANKI_REVISION}
 
-#define ANKI_DEBUG ${ANKI_DEBUG}
-#define ANKI_ASSERTIONS ANKI_DEBUG
+#define ANKI_EXTRA_CHECKS ${_ANKI_EXTRA_CHECKS}
+#define ANKI_DEBUG_SYMBOLS ${ANKI_DEBUG_SYMBOLS}
+#define ANKI_OPTIMIZE ${ANKI_OPTIMIZE}
 
 // Operating system
 #define ANKI_OS_LINUX 1
@@ -27,8 +28,7 @@
 #elif defined(__APPLE_CC__)
 #	if (defined(__ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__) \
 		&& __ENVIRONMENT_IPHONE_OS_VERSION_MIN_REQUIRED__ >= 40000) \
-	|| (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) \
-		&& __IPHONE_OS_VERSION_MIN_REQUIRED >= 40000)
+	|| (defined(__IPHONE_OS_VERSION_MIN_REQUIRED) && __IPHONE_OS_VERSION_MIN_REQUIRED >= 40000)
 #		define ANKI_OS ANKI_OS_IOS
 #	else
 #		define ANKI_OS ANKI_OS_MACOS
@@ -40,8 +40,7 @@
 #endif
 
 // POSIX system or not
-#if ANKI_OS == ANKI_OS_LINUX || ANKI_OS == ANKI_OS_ANDROID \
-	|| ANKI_OS == ANKI_OS_MACOS || ANKI_OS == ANKI_OS_IOS
+#if ANKI_OS == ANKI_OS_LINUX || ANKI_OS == ANKI_OS_ANDROID || ANKI_OS == ANKI_OS_MACOS || ANKI_OS == ANKI_OS_IOS
 #	define ANKI_POSIX 1
 #else
 #	define ANKI_POSIX 0
@@ -95,9 +94,7 @@
 // OpenGL version
 #define ANKI_GL_DESKTOP 1
 #define ANKI_GL_ES 2
-#if ANKI_OS == ANKI_OS_LINUX \
-	|| ANKI_OS == ANKI_OS_MACOS \
-	|| ANKI_OS == ANKI_OS_WINDOWS
+#if ANKI_OS == ANKI_OS_LINUX || ANKI_OS == ANKI_OS_MACOS || ANKI_OS == ANKI_OS_WINDOWS
 #	define ANKI_GL ANKI_GL_DESKTOP
 #	define ANKI_GL_STR "ANKI_GL_DESKTOP"
 #else
@@ -141,8 +138,4 @@
 
 // General config
 #define ANKI_SAFE_ALIGNMENT 16
-
-// GL
-#define ANKI_GL_MAX_SUB_DRAWCALLS 64
-
 /// @}

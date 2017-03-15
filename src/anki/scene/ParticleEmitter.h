@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -174,6 +174,9 @@ private:
 		PHYSICS_ENGINE
 	};
 
+	/// Size of a single vertex.
+	static const U VERTEX_SIZE = 5 * sizeof(F32);
+
 	ParticleEmitterResourcePtr m_particleEmitterResource;
 	DynamicArray<ParticleBase*> m_particles;
 	F32 m_timeLeftForNextEmission = 0.0;
@@ -187,8 +190,7 @@ private:
 	/// @name Graphics
 	/// @{
 	U32 m_vertBuffSize = 0;
-	Array<BufferPtr, MAX_FRAMES_IN_FLIGHT> m_vertBuffs;
-	Array<ResourceGroupPtr, MAX_FRAMES_IN_FLIGHT> m_grGroups;
+	StagingGpuMemoryToken m_vertBuffToken;
 	/// @}
 
 	SimulationType m_simulationType = SimulationType::UNDEFINED;
@@ -196,7 +198,7 @@ private:
 	void createParticlesSimulation(SceneGraph* scene);
 	void createParticlesSimpleSimulation();
 
-	ANKI_USE_RESULT Error buildRendering(RenderingBuildInfo& data) const;
+	ANKI_USE_RESULT Error buildRendering(const RenderingBuildInfoIn& in, RenderingBuildInfoOut& out) const;
 
 	void onMoveComponentUpdate(MoveComponent& move);
 };

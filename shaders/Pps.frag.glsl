@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -7,24 +7,46 @@
 #include "shaders/Tonemapping.glsl"
 #include "shaders/Functions.glsl"
 
+#if SMAA_ENABLED
+#define SMAA_GLSL_4
+#define SMAA_INCLUDE_PS 1
+#define SMAA_INCLUDE_VS 0
+#include "shaders/SMAA.hlsl"
+#endif
+
+#define BLUE_NOISE 1
+
 layout(ANKI_TEX_BINDING(0, 0)) uniform sampler2D u_isRt;
 layout(ANKI_TEX_BINDING(0, 1)) uniform sampler2D u_ppsBloomLfRt;
 layout(ANKI_TEX_BINDING(0, 2)) uniform sampler3D u_lut;
+layout(ANKI_TEX_BINDING(0, 3)) uniform sampler2DArray u_blueNoise;
+#if SMAA_ENABLED
+layout(ANKI_TEX_BINDING(0, 4)) uniform sampler2D u_smaaBlendTex;
+#endif
 #if DBG_ENABLED
-layout(ANKI_TEX_BINDING(0, 3)) uniform sampler2D u_dbgRt;
+layout(ANKI_TEX_BINDING(0, 5)) uniform sampler2D u_dbgRt;
 #endif
 
-struct Luminance
+layout(std140, ANKI_UBO_BINDING(0, 0)) uniform u0_
 {
-	vec4 averageLuminancePad3;
+	vec4 u_blueNoiseLayerPad3;
 };
 
 layout(std140, ANKI_SS_BINDING(0, 0)) readonly buffer s0_
 {
-	Luminance u_luminance;
+	vec4 u_averageLuminancePad3;
 };
 
+#if NVIDIA_LINK_ERROR_WORKAROUND
+layout(location = 0) in vec4 in_uv;
+#else
 layout(location = 0) in vec2 in_uv;
+#endif
+
+#if SMAA_ENABLED
+layout(location = 1) in vec4 in_smaaOffset;
+#endif
+
 layout(location = 0) out vec3 out_color;
 
 const vec2 TEX_OFFSET = vec2(1.0 / float(FBO_WIDTH), 1.0 / float(FBO_HEIGHT));
@@ -81,11 +103,11 @@ vec3 sharpen(in sampler2D tex, in vec2 texCoords)
 
 vec3 erosion(in sampler2D tex, in vec2 texCoords)
 {
-	vec3 minValue = textureRt(tex, texCoords).rgb;
+	vec3 minValue = texture(tex, texCoords, 0.0).rgb;
 
 	for(int i = 0; i < 8; i++)
 	{
-		vec3 tmpCol = textureRt(tex, texCoords + KERNEL[i]).rgb;
+		vec3 tmpCol = texture(tex, texCoords + KERNEL[i], 0.0).rgb;
 		minValue = min(tmpCol, minValue);
 	}
 
@@ -107,16 +129,18 @@ void main()
 #if DRAW_TO_DEFAULT && defined(ANKI_VK)
 	vec2 uv = vec2(in_uv.x, 1.0 - in_uv.y);
 #else
-	vec2 uv = in_uv;
+	vec2 uv = in_uv.xy;
 #endif
 
 #if SHARPEN_ENABLED
 	out_color = sharpen(u_isRt, uv);
+#elif SMAA_ENABLED
+	out_color = SMAANeighborhoodBlendingPS(uv, in_smaaOffset, u_isRt, u_smaaBlendTex).rgb;
 #else
 	out_color = textureLod(u_isRt, uv, 0.0).rgb;
 #endif
 
-	out_color = tonemap(out_color, u_luminance.averageLuminancePad3.x, 0.0);
+	out_color = tonemap(out_color, u_averageLuminancePad3.x, 0.0);
 
 #if BLOOM_ENABLED
 	vec3 bloom = textureLod(u_ppsBloomLfRt, uv, 0.0).rgb;
@@ -125,13 +149,21 @@ void main()
 
 	out_color = colorGrading(out_color);
 
-#if DBG_ENABLED
-	out_color += textureLod(u_dbgRt, uv, 0.0).rgb;
+#if BLUE_NOISE
+	vec3 blueNoise = textureLod(u_blueNoise, vec3(FB_SIZE / vec2(64.0) * uv, u_blueNoiseLayerPad3.x), 0.0).rgb;
+	blueNoise = blueNoise * 2.0 - 1.0;
+	blueNoise = sign(blueNoise) * (1.0 - sqrt(1.0 - abs(blueNoise)));
+
+	out_color += blueNoise / 255.0;
 #endif
 
 #if 0
 	{
-		out_color = bloom;
+		out_color = vec3(textureLod(u_ppsBloomLfRt, uv, 0.0).rgb);
 	}
+#endif
+
+#if DBG_ENABLED
+	out_color += textureLod(u_dbgRt, uv, 0.0).rgb;
 #endif
 }

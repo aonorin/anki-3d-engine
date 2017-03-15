@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -41,6 +41,7 @@ Sphere Sphere::getTransformed(const Transform& trf) const
 
 	newSphere.m_center = trf.transform(m_center);
 	newSphere.m_radius = m_radius * trf.getScale();
+	newSphere.m_radiusSq = newSphere.m_radius * newSphere.m_radius;
 	return newSphere;
 }
 
@@ -98,8 +99,8 @@ Sphere Sphere::getCompoundShape(const Sphere& b) const
 
 void Sphere::computeAabb(Aabb& aabb) const
 {
-	aabb.setMin(m_center - m_radius);
-	aabb.setMax(m_center + m_radius);
+	aabb.setMin((m_center - m_radius).xyz0());
+	aabb.setMax((m_center + m_radius).xyz0());
 }
 
 void Sphere::setFromPointCloud(const void* buff, U count, PtrSize stride, PtrSize buffSize)
@@ -136,11 +137,61 @@ void Sphere::setFromPointCloud(const void* buff, U count, PtrSize stride, PtrSiz
 	});
 
 	m_radius = sqrt(maxDist);
+	m_radiusSq = m_radius * m_radius;
 }
 
 Vec4 Sphere::computeSupport(const Vec4& dir) const
 {
 	return m_center + dir.getNormalized() * m_radius;
+}
+
+Bool Sphere::intersectsRay(
+	const Vec4& rayDir, const Vec4& rayOrigin, Array<Vec4, 2>& intersectionPoints, U& intersectionPointCount) const
+{
+	ANKI_ASSERT(isZero(rayDir.getLengthSquared() - 1.0));
+	ANKI_ASSERT(rayDir.w() == 0.0 && rayOrigin.w() == 0.0);
+
+	// See https://en.wikipedia.org/wiki/Line%E2%80%93sphere_intersection
+
+	const Vec4& o = rayOrigin;
+	const Vec4& l = rayDir;
+	const Vec4& c = m_center;
+	F32 R2 = m_radiusSq;
+
+	Vec4 o_c = o - c;
+
+	F32 a = l.dot(o_c);
+	F32 b = a * a - o_c.getLengthSquared() + R2;
+
+	if(b < 0.0)
+	{
+		intersectionPointCount = 0;
+		return false;
+	}
+	else if(b == 0.0)
+	{
+		intersectionPointCount = 1;
+		intersectionPoints[0] = -a * l + o;
+		return true;
+	}
+	else
+	{
+		F32 d = -a - sqrt(b);
+		intersectionPointCount = 0;
+		if(d > 0.0)
+		{
+			intersectionPointCount = 1;
+			intersectionPoints[0] = d * l + o;
+		}
+
+		d = -a + sqrt(b);
+		if(d > 0.0)
+		{
+			intersectionPoints[intersectionPointCount++] = d * l + o;
+		}
+
+		return intersectionPointCount > 0;
+	}
 }
 
 } // end namespace anki

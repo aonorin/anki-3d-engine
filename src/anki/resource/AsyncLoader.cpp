@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -20,7 +20,7 @@ AsyncLoader::~AsyncLoader()
 
 	if(!m_taskQueue.isEmpty())
 	{
-		ANKI_LOGW("Stoping loading thread while there is work to do");
+		ANKI_RESOURCE_LOGW("Stoping loading thread while there is work to do");
 
 		while(!m_taskQueue.isEmpty())
 		{
@@ -129,7 +129,7 @@ Error AsyncLoader::threadWorker()
 			}
 			else
 			{
-				ANKI_LOGE("Async loader task failed");
+				ANKI_RESOURCE_LOGE("Async loader task failed");
 			}
 
 			// Do other stuff

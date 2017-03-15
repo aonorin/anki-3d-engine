@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,11 +15,27 @@ namespace anki
 /// @addtogroup graphics
 /// @{
 
+/// Graphics object type.
+enum GrObjectType : U16
+{
+	BUFFER,
+	COMMAND_BUFFER,
+	FRAMEBUFFER,
+	OCCLUSION_QUERY,
+	SAMPLER,
+	SHADER,
+	TEXTURE,
+	SHADER_PROGRAM,
+	COUNT
+};
+
 /// Base of all graphics objects.
 class GrObject : public NonCopyable
 {
+	friend class GrObjectCache;
+
 public:
-	GrObject(GrManager* manager, GrObjectType type, U64 hash);
+	GrObject(GrManager* manager, GrObjectType type, U64 hash, GrObjectCache* cache);
 
 	virtual ~GrObject();
 
@@ -63,6 +79,7 @@ private:
 	U64 m_uuid;
 	U64 m_hash;
 	GrObjectType m_type;
+	GrObjectCache* m_cache;
 };
 /// @}
 

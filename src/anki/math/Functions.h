@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,39 +15,11 @@ namespace anki
 /// @addtogroup math
 /// @{
 
-template<typename Scalar>
-constexpr Scalar getPi();
+/// Just PI.
+const F32 PI = 3.14159265358979323846f;
 
-template<>
-inline constexpr F32 getPi<F32>()
-{
-	return 3.14159265358979323846f;
-}
-
-template<>
-inline constexpr F64 getPi<F64>()
-{
-	return 3.14159265358979323846;
-}
-
-template<typename Scalar>
-constexpr Scalar getEpsilon()
-{
-	static_assert(1, "Shouldn't instantiate");
-	return Scalar(0);
-}
-
-template<>
-constexpr F32 getEpsilon<F32>()
-{
-	return 1.0e-6f;
-}
-
-template<>
-constexpr F64 getEpsilon<F64>()
-{
-	return 1.0e-6;
-}
+/// Floating point epsilon.
+const F32 EPSILON = 1.0e-6f;
 
 template<typename T>
 inline T sin(const T rad)
@@ -70,6 +42,7 @@ inline T tan(const T rad)
 template<typename T>
 inline T acos(const T x)
 {
+	ANKI_ASSERT(x >= T(-1) && x <= T(1));
 	return std::acos(x);
 }
 
@@ -116,36 +89,26 @@ inline T mod(const T x, const T y)
 template<typename T>
 T absolute(const T f);
 
-#define ANKI_SPECIALIZE_ABS_INT(type_)                                                                                 \
+#define ANKI_SPECIALIZE_ABS(type_)                                                                                     \
 	template<>                                                                                                         \
 	inline type_ absolute(const type_ f)                                                                               \
 	{                                                                                                                  \
-		return std::abs(f);                                                                                            \
+		return (f < type_(0)) ? -f : f;                                                                                \
 	}
 
-ANKI_SPECIALIZE_ABS_INT(I8)
-ANKI_SPECIALIZE_ABS_INT(I16)
-ANKI_SPECIALIZE_ABS_INT(I32)
-ANKI_SPECIALIZE_ABS_INT(I64)
+ANKI_SPECIALIZE_ABS(I8)
+ANKI_SPECIALIZE_ABS(I16)
+ANKI_SPECIALIZE_ABS(I32)
+ANKI_SPECIALIZE_ABS(I64)
+ANKI_SPECIALIZE_ABS(F32)
+ANKI_SPECIALIZE_ABS(F64)
 
-#undef ANKI_SPECIALIZE_ABS_INT
-
-template<>
-inline F32 absolute(const F32 f)
-{
-	return std::fabs(f);
-}
-
-template<>
-inline F64 absolute(const F64 f)
-{
-	return std::fabs(f);
-}
+#undef ANKI_SPECIALIZE_ABS
 
 template<typename T>
 inline Bool isZero(const T f)
 {
-	return absolute<T>(f) < getEpsilon<T>();
+	return absolute<T>(f) < EPSILON;
 }
 
 #define ANKI_SPECIALIZE_IS_ZERO_INT(type_)                                                                             \
@@ -169,13 +132,13 @@ ANKI_SPECIALIZE_IS_ZERO_INT(U64)
 template<typename T>
 inline T toRad(const T degrees)
 {
-	return degrees * (getPi<T>() / T(180));
+	return degrees * (PI / T(180));
 }
 
 template<typename T>
 inline T toDegrees(const T rad)
 {
-	return rad * (T(180) / getPi<T>());
+	return rad * (T(180) / PI);
 }
 
 /// Linear interpolation between values
@@ -185,7 +148,7 @@ inline T toDegrees(const T rad)
 template<typename Type>
 static Type linearInterpolate(const Type& from, const Type& to, F32 u)
 {
-	return from * (1.0 - u) + to * u;
+	return from * (1.0f - u) + to * u;
 }
 
 /// Cosine interpolation
@@ -195,8 +158,8 @@ static Type linearInterpolate(const Type& from, const Type& to, F32 u)
 template<typename Type>
 static Type cosInterpolate(const Type& from, const Type& to, F32 u)
 {
-	F32 u2 = (1.0 - cos<F32>(u * getPi<F32>())) / 2.0;
-	return from * (1.0 - u2) + to * u2;
+	F32 u2 = (1.0f - cos<Type>(u * PI)) / 2.0f;
+	return from * (1.0f - u2) + to * u2;
 }
 
 /// Cubic interpolation

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,6 +18,7 @@ class ConfigSet;
 class SceneGraph;
 class SceneNode;
 class ThreadPool;
+class StagingGpuMemoryManager;
 
 /// @addtogroup renderer
 /// @{
@@ -33,6 +34,7 @@ public:
 	ANKI_USE_RESULT Error create(ThreadPool* threadpool,
 		ResourceManager* resources,
 		GrManager* gl,
+		StagingGpuMemoryManager* stagingMem,
 		AllocAlignedCallback allocCb,
 		void* allocCbUserData,
 		const ConfigSet& config,
@@ -67,8 +69,7 @@ private:
 	Bool8 m_rDrawToDefaultFb = false;
 
 	ShaderResourcePtr m_blitFrag;
-	PipelinePtr m_blitPpline;
-	ResourceGroupPtr m_rcGroup;
+	ShaderProgramPtr m_blitProg;
 
 	FramebufferPtr m_defaultFb;
 	U32 m_width = 0; ///< Default FB size.

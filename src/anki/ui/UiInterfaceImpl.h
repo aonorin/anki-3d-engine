@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -75,9 +75,7 @@ private:
 	public:
 		ShaderResourcePtr m_vShader;
 		ShaderResourcePtr m_fShader;
-		PipelinePtr m_ppline;
 		Array<BufferPtr, MAX_FRAMES_IN_FLIGHT> m_vertBuffs;
-		Array<ResourceGroupPtr, MAX_FRAMES_IN_FLIGHT> m_rcGroups;
 	};
 
 	Array<Stage, StageId::COUNT> m_stages;

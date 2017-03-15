@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -25,7 +25,7 @@
 #endif
 
 precision DEFAULT_FLOAT_PRECISION float;
-precision DEFAULT_FLOAT_PRECISION int;
+precision DEFAULT_INT_PRECISION int;
 
 const float EPSILON = 0.000001;
 const float PI = 3.14159265358979323846;
@@ -33,9 +33,8 @@ const uint UBO_MAX_SIZE = 16384u;
 
 const uint MAX_U32 = 0xFFFFFFFFu;
 
-// Read from a render target texture
-//#define textureRt(tex_, texc_) texture(tex_, texc_)
-#define textureRt(tex_, texc_) textureLod(tex_, texc_, 0.0)
+#define UV_TO_NDC(x_) ((x_)*2.0 - 1.0)
+#define NDC_TO_UV(x_) ((x_)*0.5 + 0.5)
 
 // Common locations
 #define POSITION_LOCATION 0

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -34,6 +34,8 @@ anki_internal:
 
 	void setPostRunBarriers(RenderingContext& ctx);
 
+	void drawVolumetric(RenderingContext& ctx, CommandBufferPtr cmdb);
+
 	TexturePtr getRt() const
 	{
 		return m_rt;
@@ -59,7 +61,18 @@ private:
 	U m_height;
 	FramebufferPtr m_fb;
 	TexturePtr m_rt;
-	ResourceGroupPtr m_globalResources;
+
+	class Vol
+	{
+	public:
+		ShaderResourcePtr m_frag;
+		ShaderProgramPtr m_prog;
+		SamplerPtr m_nearestSampler;
+		TextureResourcePtr m_noiseTex;
+	} m_vol;
+
+	ANKI_USE_RESULT Error initInternal(const ConfigSet& initializer);
+	ANKI_USE_RESULT Error initVol();
 };
 /// @}
 

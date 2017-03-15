@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,15 +15,14 @@ namespace anki
 
 // Forward
 class GrObject;
+class GrObjectCache;
 
 class GrManager;
 class GrManagerImpl;
 class TextureInitInfo;
 class SamplerInitInfo;
 class GrManagerInitInfo;
-class PipelineInitInfo;
 class FramebufferInitInfo;
-class ResourceGroupInitInfo;
 
 /// @addtogroup graphics
 /// @{
@@ -42,27 +41,19 @@ ANKI_GR_CLASS(Texture)
 ANKI_GR_CLASS(Sampler)
 ANKI_GR_CLASS(CommandBuffer)
 ANKI_GR_CLASS(Shader)
-ANKI_GR_CLASS(Pipeline)
 ANKI_GR_CLASS(Framebuffer)
 ANKI_GR_CLASS(OcclusionQuery)
-ANKI_GR_CLASS(ResourceGroup)
+ANKI_GR_CLASS(ShaderProgram)
 
 #undef ANKI_GR_CLASS
 
-/// Graphics object type.
-enum GrObjectType : U16
-{
-	BUFFER,
-	COMMAND_BUFFER,
-	FRAMEBUFFER,
-	OCCLUSION_QUERY,
-	PIPELINE,
-	RESOURCE_GROUP,
-	SAMPLER,
-	SHADER,
-	TEXTURE,
-	COUNT
-};
+#define ANKI_GR_OBJECT                                                                                                 \
+	friend class GrManager;                                                                                            \
+	template<typename, typename>                                                                                       \
+	friend class IntrusivePtr;                                                                                         \
+	template<typename, typename>                                                                                       \
+	friend class GenericPoolAllocator;                                                                                 \
+	friend class GrObjectCache;
 
 /// Knowing the ventor allows some optimizations
 enum class GpuVendor : U8
@@ -100,6 +91,22 @@ public:
 		Array<U32, 4> m_coloru;
 		Ds m_depthStencil;
 	};
+
+	ClearValue()
+	{
+		memset(this, 0, sizeof(*this));
+	}
+
+	ClearValue(const ClearValue& b)
+	{
+		operator=(b);
+	}
+
+	ClearValue& operator=(const ClearValue& b)
+	{
+		memcpy(this, &b, sizeof(*this));
+		return *this;
+	}
 };
 
 /// A way to identify a surface in a texture.
@@ -145,52 +152,29 @@ const U MAX_VERTEX_ATTRIBUTES = 8;
 const U MAX_COLOR_ATTACHMENTS = 4;
 const U MAX_MIPMAPS = 16;
 const U MAX_TEXTURE_LAYERS = 32;
+
 const U MAX_TEXTURE_BINDINGS = 10;
-const U MAX_UNIFORM_BUFFER_BINDINGS = 4;
+const U MAX_UNIFORM_BUFFER_BINDINGS = 5;
 const U MAX_STORAGE_BUFFER_BINDINGS = 4;
-const U MAX_ATOMIC_BUFFER_BINDINGS = 1;
 const U MAX_IMAGE_BINDINGS = 4;
+const U MAX_TEXTURE_BUFFER_BINDINGS = 4;
+
+enum class DescriptorType : U8
+{
+	TEXTURE,
+	UNIFORM_BUFFER,
+	STORAGE_BUFFER,
+	IMAGE,
+	TEXTURE_BUFFER,
+
+	COUNT
+};
+
+const U MAX_BINDINGS_PER_DESCRIPTOR_SET = MAX_TEXTURE_BINDINGS + MAX_UNIFORM_BUFFER_BINDINGS
+	+ MAX_STORAGE_BUFFER_BINDINGS + MAX_IMAGE_BINDINGS + MAX_TEXTURE_BUFFER_BINDINGS;
+
 const U MAX_FRAMES_IN_FLIGHT = 3; ///< Triple buffering.
-/// Groups that can be bound at the same time.
-const U MAX_BOUND_RESOURCE_GROUPS = 2;
-/// An anoying limit for Vulkan.
-const U MAX_RESOURCE_GROUPS = 1024;
-
-/// The life expectancy of a TransientMemoryToken.
-enum class TransientMemoryTokenLifetime : U8
-{
-	PER_FRAME,
-	PERSISTENT
-};
-
-/// Token that gets returned when requesting for memory to write to a resource.
-class TransientMemoryToken
-{
-anki_internal:
-	PtrSize m_offset = 0;
-	PtrSize m_range = 0;
-	TransientMemoryTokenLifetime m_lifetime = TransientMemoryTokenLifetime::PER_FRAME;
-	BufferUsageBit m_usage = BufferUsageBit::NONE;
-
-	void markUnused()
-	{
-		m_offset = m_range = MAX_U32;
-	}
-
-	Bool isUnused() const
-	{
-		return m_offset == MAX_U32 && m_range == MAX_U32;
-	}
-};
-
-/// Struct to help update the offset of the dynamic buffers.
-class TransientMemoryInfo
-{
-public:
-	Array<TransientMemoryToken, MAX_UNIFORM_BUFFER_BINDINGS> m_uniformBuffers;
-	Array<TransientMemoryToken, MAX_STORAGE_BUFFER_BINDINGS> m_storageBuffers;
-	Array<TransientMemoryToken, MAX_VERTEX_ATTRIBUTES> m_vertexBuffers;
-};
+const U MAX_DESCRIPTOR_SETS = 2; ///< Groups that can be bound at the same time.
 
 /// Compute max number of mipmaps for a 2D texture.
 inline U computeMaxMipmapCount2d(U w, U h, U minSizeOfLastMip = 1)

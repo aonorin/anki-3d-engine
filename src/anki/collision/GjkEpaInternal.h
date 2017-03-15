@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -76,7 +76,7 @@ public:
 		m_dist = -1.0;
 		m_originInside = 2;
 		m_dead = false;
-#if ANKI_DEBUG
+#if ANKI_EXTRA_CHECKS
 		m_idx[0] = m_idx[1] = m_idx[2] = MAX_U32;
 #endif
 	}

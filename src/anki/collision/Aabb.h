@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -43,12 +43,10 @@ public:
 	{
 		return m_min;
 	}
-	Vec4& getMin()
-	{
-		return m_min;
-	}
+
 	void setMin(const Vec4& x)
 	{
+		ANKI_ASSERT(x.w() == 0.0);
 		m_min = x;
 	}
 
@@ -56,12 +54,10 @@ public:
 	{
 		return m_max;
 	}
-	Vec4& getMax()
-	{
-		return m_max;
-	}
+
 	void setMax(const Vec4& x)
 	{
+		ANKI_ASSERT(x.w() == 0.0);
 		m_max = x;
 	}
 

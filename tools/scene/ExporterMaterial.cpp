@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -273,11 +273,12 @@ void Exporter::exportMaterial(const aiMaterial& mtl) const
 		materialStr = replaceAllString(materialStr, "%specularColorArg%", "uSpecularColor");
 	}
 
+	// Roughness
 	if(!shininessTex.empty())
 	{
 		materialStr = replaceAllString(materialStr,
 			"%specularPowerInput%",
-			R"(<input><type>sampler2D</type><name>uSpecularPower</name><value>)" + m_texrpath + shininessTex
+			R"(<input><type>sampler2D</type><name>roughness</name><value>)" + m_texrpath + shininessTex
 				+ R"(</value></input>)");
 
 		materialStr = replaceAllString(materialStr, "%specularPowerValue%", m_texrpath + shininessTex);
@@ -286,7 +287,7 @@ void Exporter::exportMaterial(const aiMaterial& mtl) const
 
 		materialStr = replaceAllString(materialStr, "%id%", "60");
 
-		materialStr = replaceAllString(materialStr, "%map%", "uSpecularPower");
+		materialStr = replaceAllString(materialStr, "%map%", "roughness");
 
 		materialStr = replaceAllString(materialStr, "%specularPowerArg%", "out60");
 	}
@@ -305,12 +306,12 @@ void Exporter::exportMaterial(const aiMaterial& mtl) const
 
 		materialStr = replaceAllString(materialStr,
 			"%specularPowerInput%",
-			R"(<input><type>float</type><name>uSpecularPower</name><value>)" + std::to_string(shininess)
+			R"(<input><type>float</type><name>roughness</name><const>1</const><value>)" + std::to_string(shininess)
 				+ R"(</value></input>)");
 
 		materialStr = replaceAllString(materialStr, "%specularPowerFunc%", "");
 
-		materialStr = replaceAllString(materialStr, "%specularPowerArg%", "uSpecularPower");
+		materialStr = replaceAllString(materialStr, "%specularPowerArg%", "roughness");
 	}
 
 	materialStr = replaceAllString(materialStr, "%maxSpecularPower%", " ");
@@ -457,10 +458,18 @@ void Exporter::exportMaterial(const aiMaterial& mtl) const
 	materialStr = replaceAllString(materialStr, "%diffuseMap%", m_texrpath + diffTex);
 
 	// Subsurface
+	float subsurface = 0.0;
+	if(mtl.mAnKiProperties.find("subsurface") != mtl.mAnKiProperties.end())
+	{
+		subsurface = std::stof(mtl.mAnKiProperties.at("subsurface"));
+	}
+
 	materialStr = replaceAllString(materialStr,
 		"%subsurfaceInput%",
 		"<input><type>float</type><name>subsurface</name>"
-		"<const>1</const><value>0.0</value></input>");
+		"<const>1</const><value>"
+			+ std::to_string(subsurface)
+			+ "</value></input>");
 	materialStr = replaceAllString(materialStr, "%subsurfaceArg%", "subsurface");
 
 	// Replace texture extensions with .anki

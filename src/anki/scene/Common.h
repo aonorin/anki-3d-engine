@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -11,6 +11,11 @@
 
 namespace anki
 {
+
+#define ANKI_SCENE_LOGI(...) ANKI_LOG("SCEN", NORMAL, __VA_ARGS__)
+#define ANKI_SCENE_LOGE(...) ANKI_LOG("SCEN", ERROR, __VA_ARGS__)
+#define ANKI_SCENE_LOGW(...) ANKI_LOG("SCEN", WARNING, __VA_ARGS__)
+#define ANKI_SCENE_LOGF(...) ANKI_LOG("SCEN", FATAL, __VA_ARGS__)
 
 // Forward
 class SceneGraph;

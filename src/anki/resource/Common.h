@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -24,10 +24,16 @@ class ResourcePointer;
 /// @addtogroup resource
 /// @{
 
+#define ANKI_RESOURCE_LOGI(...) ANKI_LOG("RSRC", NORMAL, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGE(...) ANKI_LOG("RSRC", ERROR, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGW(...) ANKI_LOG("RSRC", WARNING, __VA_ARGS__)
+#define ANKI_RESOURCE_LOGF(...) ANKI_LOG("RSRC", FATAL, __VA_ARGS__)
+
 /// @name Constants
 /// @{
 const U MAX_LODS = 3;
 const U MAX_INSTANCES = 64;
+const U MAX_SUB_DRAWCALLS = 64;
 
 /// The number of instance groups. Eg First group is 1 instance, 2nd group 2 instances, 3rd is 4 instances. The
 /// expression is: @code log2(MAX_INSTANCES) + 1 @endcode but since Clang doesn't like log2 in constant expressions use

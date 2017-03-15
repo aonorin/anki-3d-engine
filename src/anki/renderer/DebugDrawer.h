@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,9 +18,6 @@ namespace anki
 
 // Forward
 class Renderer;
-class PortalComponent;
-class SectorComponent;
-class ReflectionProxyComponent;
 
 /// @addtogroup renderer
 /// @{
@@ -91,8 +88,7 @@ private:
 	Renderer* m_r;
 	ShaderResourcePtr m_frag;
 	ShaderResourcePtr m_vert;
-	Array2d<PipelinePtr, 2, 2> m_pplines;
-	Array<ResourceGroupPtr, MAX_FRAMES_IN_FLIGHT> m_rcGroup;
+	ShaderProgramPtr m_prog;
 	Array<BufferPtr, MAX_FRAMES_IN_FLIGHT> m_vertBuff;
 
 	CommandBufferPtr m_cmdb;
@@ -109,13 +105,6 @@ private:
 	DynamicArray<Vec3> m_sphereVerts;
 
 	Bool8 m_depthTestEnabled = true;
-
-	PipelinePtr& getPpline(Bool depth, PrimitiveTopology topology)
-	{
-		U i = (depth == false) ? 0 : 1;
-		U j = (topology == PrimitiveTopology::LINES) ? 0 : 1;
-		return m_pplines[i][j];
-	}
 
 	void flush();
 };
@@ -174,17 +163,17 @@ public:
 	{
 	}
 
-	void draw(FrustumComponent& fr) const;
+	void draw(const FrustumComponent& fr) const;
 
-	void draw(SpatialComponent& sp) const;
+	void draw(const SpatialComponent& sp) const;
 
 	void draw(const PortalComponent& c) const;
 
 	void draw(const SectorComponent& c) const;
 
-	void drawPath(const Path& path) const;
-
 	void draw(const ReflectionProxyComponent& proxy) const;
+
+	void draw(const DecalComponent& decalc) const;
 
 private:
 	DebugDrawer* m_dbg;

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -78,7 +78,7 @@ void GlObject::destroyDeferred(GlDeleteFunction deleteCallback)
 		CommandBufferPtr commands;
 
 		commands = manager.newInstance<CommandBuffer>(CommandBufferInitInfo());
-		commands->getImplementation().pushBackNewCommand<DeleteGlObjectCommand>(deleteCallback, m_glName);
+		commands->m_impl->pushBackNewCommand<DeleteGlObjectCommand>(deleteCallback, m_glName);
 		commands->flush();
 	}
 	else

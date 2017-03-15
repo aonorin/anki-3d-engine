@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -81,7 +81,8 @@ Error Camera::init(Frustum* frustum)
 		| FrustumComponentVisibilityTestFlag::LENS_FLARE_COMPONENTS
 		| FrustumComponentVisibilityTestFlag::REFLECTION_PROBES
 		| FrustumComponentVisibilityTestFlag::REFLECTION_PROXIES
-		| FrustumComponentVisibilityTestFlag::OCCLUDERS);
+		| FrustumComponentVisibilityTestFlag::OCCLUDERS
+		| FrustumComponentVisibilityTestFlag::DECALS);
 	addComponent(frc, true);
 
 	// Feedback component #2

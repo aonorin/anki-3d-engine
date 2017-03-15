@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -42,145 +42,6 @@ static GLenum convertTextureType(TextureType type)
 	};
 
 	return out;
-}
-
-static void convertTextureInformation(
-	const PixelFormat& pf, Bool8& compressed, GLenum& format, GLenum& internalFormat, GLenum& type)
-{
-	compressed =
-		pf.m_components >= ComponentFormat::FIRST_COMPRESSED && pf.m_components <= ComponentFormat::LAST_COMPRESSED;
-
-	switch(pf.m_components)
-	{
-#if ANKI_GL == ANKI_GL_DESKTOP
-	case ComponentFormat::R8G8B8_S3TC:
-		format = GL_COMPRESSED_RGB_S3TC_DXT1_EXT;
-		internalFormat = format;
-		type = GL_UNSIGNED_BYTE;
-		break;
-	case ComponentFormat::R8G8B8A8_S3TC:
-		format = GL_COMPRESSED_RGBA_S3TC_DXT5_EXT;
-		internalFormat = format;
-		type = GL_UNSIGNED_BYTE;
-		break;
-#else
-	case ComponentFormat::R8G8B8_ETC2:
-		format = GL_COMPRESSED_RGB8_ETC2;
-		internalFormat = format;
-		type = GL_UNSIGNED_BYTE;
-		break;
-	case ComponentFormat::R8G8B8A8_ETC2:
-		format = GL_COMPRESSED_RGBA8_ETC2_EAC;
-		internalFormat = format;
-		type = GL_UNSIGNED_BYTE;
-		break;
-#endif
-	case ComponentFormat::R8:
-		format = GL_R;
-		internalFormat = GL_R8;
-		type = GL_UNSIGNED_BYTE;
-		break;
-	case ComponentFormat::R8G8B8:
-		format = GL_RGB;
-		internalFormat = GL_RGB8;
-		type = GL_UNSIGNED_BYTE;
-		break;
-	case ComponentFormat::R8G8B8A8:
-		format = GL_RGBA;
-		internalFormat = GL_RGBA8;
-		type = GL_UNSIGNED_BYTE;
-		break;
-	case ComponentFormat::R32G32:
-		if(pf.m_transform == TransformFormat::FLOAT)
-		{
-			format = GL_RG;
-			internalFormat = GL_RG32F;
-			type = GL_FLOAT;
-		}
-		else if(pf.m_transform == TransformFormat::UINT)
-		{
-			format = GL_RG_INTEGER;
-			internalFormat = GL_RG32UI;
-			type = GL_UNSIGNED_INT;
-		}
-		else
-		{
-			ANKI_ASSERT(0 && "TODO");
-		}
-		break;
-	case ComponentFormat::R32G32B32:
-		if(pf.m_transform == TransformFormat::FLOAT)
-		{
-			format = GL_RGB;
-			internalFormat = GL_RGB32F;
-			type = GL_FLOAT;
-		}
-		else if(pf.m_transform == TransformFormat::UINT)
-		{
-			format = GL_RGB_INTEGER;
-			internalFormat = GL_RGB32UI;
-			type = GL_UNSIGNED_INT;
-		}
-		else
-		{
-			ANKI_ASSERT(0 && "TODO");
-		}
-		break;
-	case ComponentFormat::R16G16B16:
-		if(pf.m_transform == TransformFormat::FLOAT)
-		{
-			format = GL_RGB;
-			internalFormat = GL_RGB16F;
-			type = GL_FLOAT;
-		}
-		else if(pf.m_transform == TransformFormat::UINT)
-		{
-			format = GL_RGB_INTEGER;
-			internalFormat = GL_RGB16UI;
-			type = GL_UNSIGNED_INT;
-		}
-		else
-		{
-			ANKI_ASSERT(0 && "TODO");
-		}
-		break;
-	case ComponentFormat::R11G11B10:
-		if(pf.m_transform == TransformFormat::FLOAT)
-		{
-			format = GL_RGB;
-			internalFormat = GL_R11F_G11F_B10F;
-			type = GL_FLOAT;
-		}
-		else
-		{
-			ANKI_ASSERT(0 && "TODO");
-		}
-		break;
-	case ComponentFormat::R10G10B10A2:
-		if(pf.m_transform == TransformFormat::UNORM)
-		{
-			format = GL_RGBA;
-			internalFormat = GL_RGB10_A2;
-			type = GL_UNSIGNED_INT;
-		}
-		else
-		{
-			ANKI_ASSERT(0 && "TODO");
-		}
-		break;
-	case ComponentFormat::D24:
-		format = GL_DEPTH_COMPONENT;
-		internalFormat = GL_DEPTH_COMPONENT24;
-		type = GL_UNSIGNED_INT;
-		break;
-	case ComponentFormat::D16:
-		format = GL_DEPTH_COMPONENT;
-		internalFormat = GL_DEPTH_COMPONENT16;
-		type = GL_UNSIGNED_SHORT;
-		break;
-	default:
-		ANKI_ASSERT(0);
-	}
 }
 
 class DeleteTextureCommand final : public GlCommand
@@ -232,7 +93,7 @@ TextureImpl::~TextureImpl()
 		CommandBufferPtr commands;
 
 		commands = manager.newInstance<CommandBuffer>(CommandBufferInitInfo());
-		commands->getImplementation().pushBackNewCommand<DeleteTextureCommand>(m_glName, m_texViews, getAllocator());
+		commands->m_impl->pushBackNewCommand<DeleteTextureCommand>(m_glName, m_texViews, getAllocator());
 		commands->flush();
 	}
 	else
@@ -262,7 +123,7 @@ void TextureImpl::preInit(const TextureInitInfo& init)
 	m_texType = init.m_type;
 	m_pformat = init.m_format;
 
-	convertTextureInformation(init.m_format, m_compressed, m_format, m_internalFormat, m_type);
+	convertTextureInformation(init.m_format, m_compressed, m_format, m_internalFormat, m_type, m_dsAspect);
 
 	if(m_target != GL_TEXTURE_3D)
 	{
@@ -387,10 +248,9 @@ void TextureImpl::init(const TextureInitInfo& init)
 	ANKI_CHECK_GL_ERROR();
 }
 
-void TextureImpl::writeSurface(const TextureSurfaceInfo& surf, void* data, PtrSize dataSize)
+void TextureImpl::writeSurface(const TextureSurfaceInfo& surf, GLuint pbo, PtrSize offset, PtrSize dataSize)
 {
-	checkSurface(surf);
-	ANKI_ASSERT(data);
+	checkSurfaceOrVolume(surf);
 	ANKI_ASSERT(dataSize > 0);
 
 	U mipmap = surf.m_level;
@@ -401,52 +261,54 @@ void TextureImpl::writeSurface(const TextureSurfaceInfo& surf, void* data, PtrSi
 	ANKI_ASSERT(h > 0);
 
 	bind();
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+	const void* ptrOffset = numberToPtr<const void*>(offset);
 
 	switch(m_target)
 	{
 	case GL_TEXTURE_2D:
 		if(!m_compressed)
 		{
-			glTexSubImage2D(m_target, mipmap, 0, 0, w, h, m_format, m_type, data);
+			glTexSubImage2D(m_target, mipmap, 0, 0, w, h, m_format, m_type, ptrOffset);
 		}
 		else
 		{
-			glCompressedTexSubImage2D(m_target, mipmap, 0, 0, w, h, m_format, dataSize, data);
+			glCompressedTexSubImage2D(m_target, mipmap, 0, 0, w, h, m_format, dataSize, ptrOffset);
 		}
 		break;
 	case GL_TEXTURE_CUBE_MAP:
 		if(!m_compressed)
 		{
-			glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + surfIdx, mipmap, 0, 0, w, h, m_format, m_type, data);
+			glTexSubImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + surfIdx, mipmap, 0, 0, w, h, m_format, m_type, ptrOffset);
 		}
 		else
 		{
 			glCompressedTexSubImage2D(
-				GL_TEXTURE_CUBE_MAP_POSITIVE_X + surfIdx, mipmap, 0, 0, w, h, m_format, dataSize, data);
+				GL_TEXTURE_CUBE_MAP_POSITIVE_X + surfIdx, mipmap, 0, 0, w, h, m_format, dataSize, ptrOffset);
 		}
 		break;
 	case GL_TEXTURE_2D_ARRAY:
 	case GL_TEXTURE_3D:
 		if(!m_compressed)
 		{
-			glTexSubImage3D(m_target, mipmap, 0, 0, surfIdx, w, h, 1, m_format, m_type, data);
+			glTexSubImage3D(m_target, mipmap, 0, 0, surfIdx, w, h, 1, m_format, m_type, ptrOffset);
 		}
 		else
 		{
-			glCompressedTexSubImage3D(m_target, mipmap, 0, 0, surfIdx, w, h, 1, m_format, dataSize, data);
+			glCompressedTexSubImage3D(m_target, mipmap, 0, 0, surfIdx, w, h, 1, m_format, dataSize, ptrOffset);
 		}
 		break;
 	default:
 		ANKI_ASSERT(0);
 	}
 
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	ANKI_CHECK_GL_ERROR();
 }
 
-void TextureImpl::writeVolume(const TextureVolumeInfo& vol, void* data, PtrSize dataSize)
+void TextureImpl::writeVolume(const TextureVolumeInfo& vol, GLuint pbo, PtrSize offset, PtrSize dataSize)
 {
-	checkVolume(vol);
-	ANKI_ASSERT(data);
+	checkSurfaceOrVolume(vol);
 	ANKI_ASSERT(dataSize > 0);
 	ANKI_ASSERT(m_texType == TextureType::_3D);
 
@@ -459,16 +321,19 @@ void TextureImpl::writeVolume(const TextureVolumeInfo& vol, void* data, PtrSize 
 	ANKI_ASSERT(d > 0);
 
 	bind();
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, pbo);
+	const void* ptrOffset = numberToPtr<const void*>(offset);
 
 	if(!m_compressed)
 	{
-		glTexSubImage3D(m_target, mipmap, 0, 0, 0, w, h, d, m_format, m_type, data);
+		glTexSubImage3D(m_target, mipmap, 0, 0, 0, w, h, d, m_format, m_type, ptrOffset);
 	}
 	else
 	{
-		glCompressedTexSubImage3D(m_target, mipmap, 0, 0, 0, w, h, d, m_format, dataSize, data);
+		glCompressedTexSubImage3D(m_target, mipmap, 0, 0, 0, w, h, d, m_format, dataSize, ptrOffset);
 	}
 
+	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 	ANKI_CHECK_GL_ERROR();
 }
 
@@ -550,22 +415,45 @@ void TextureImpl::copy(const TextureImpl& src,
 		1);
 }
 
-void TextureImpl::clear(const TextureSurfaceInfo& surf, const ClearValue& clearValue)
+void TextureImpl::clear(const TextureSurfaceInfo& surf, const ClearValue& clearValue, DepthStencilAspectBit aspect)
 {
 	ANKI_ASSERT(isCreated());
 	ANKI_ASSERT(surf.m_level < m_mipsCount);
+	ANKI_ASSERT((aspect & m_dsAspect) == aspect);
+
+	// Find the aspect to clear
+	GLenum format;
+	if(aspect == DepthStencilAspectBit::DEPTH)
+	{
+		ANKI_ASSERT(m_format == GL_DEPTH_COMPONENT || m_format == GL_DEPTH_STENCIL);
+		format = GL_DEPTH_COMPONENT;
+	}
+	else if(aspect == DepthStencilAspectBit::STENCIL)
+	{
+		ANKI_ASSERT(m_format == GL_STENCIL_INDEX || m_format == GL_DEPTH_STENCIL);
+		format = GL_STENCIL_INDEX;
+	}
+	else if(aspect == DepthStencilAspectBit::DEPTH_STENCIL)
+	{
+		ANKI_ASSERT(m_format == GL_DEPTH_STENCIL);
+		format = GL_DEPTH_STENCIL;
+	}
+	else
+	{
+		format = m_format;
+	}
 
 	U surfaceIdx = computeSurfaceIdx(surf);
 	U width = m_width >> surf.m_level;
 	U height = m_height >> surf.m_level;
 
 	glClearTexSubImage(
-		m_glName, surf.m_level, 0, 0, surfaceIdx, width, height, 1, m_format, GL_FLOAT, &clearValue.m_colorf[0]);
+		m_glName, surf.m_level, 0, 0, surfaceIdx, width, height, 1, format, GL_FLOAT, &clearValue.m_colorf[0]);
 }
 
 U TextureImpl::computeSurfaceIdx(const TextureSurfaceInfo& surf) const
 {
-	checkSurface(surf);
+	checkSurfaceOrVolume(surf);
 	U out;
 
 	if(m_target == GL_TEXTURE_3D)

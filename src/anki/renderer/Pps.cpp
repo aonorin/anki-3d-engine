@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -11,6 +11,7 @@
 #include <anki/renderer/Is.h>
 #include <anki/renderer/Ms.h>
 #include <anki/renderer/Dbg.h>
+#include <anki/renderer/Smaa.h>
 #include <anki/util/Logger.h>
 #include <anki/misc/ConfigSet.h>
 #include <anki/scene/SceneNode.h>
@@ -39,21 +40,20 @@ Error Pps::initInternal(const ConfigSet& config)
 
 	if(!m_r->getDrawToDefaultFramebuffer())
 	{
-		m_r->createRenderTarget(m_r->getWidth(),
+		m_rt = m_r->createAndClearRenderTarget(m_r->create2DRenderTargetInitInfo(m_r->getWidth(),
 			m_r->getHeight(),
 			RT_PIXEL_FORMAT,
 			TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE | TextureUsageBit::SAMPLED_FRAGMENT,
-			SamplingFilter::LINEAR,
-			1,
-			m_rt);
+			SamplingFilter::LINEAR));
 
 		FramebufferInitInfo fbInit;
 		fbInit.m_colorAttachmentCount = 1;
 		fbInit.m_colorAttachments[0].m_texture = m_rt;
 		fbInit.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::DONT_CARE;
-		fbInit.m_colorAttachments[0].m_usageInsideRenderPass = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE;
 		m_fb = getGrManager().newInstance<Framebuffer>(fbInit);
 	}
+
+	ANKI_CHECK(getResourceManager().loadResource("engine_data/BlueNoiseLdrRgb64x64.ankitex", m_blueNoise));
 
 	return ErrorCode::NONE;
 }
@@ -63,7 +63,7 @@ Error Pps::init(const ConfigSet& config)
 	Error err = initInternal(config);
 	if(err)
 	{
-		ANKI_LOGE("Failed to init PPS");
+		ANKI_R_LOGE("Failed to init PPS");
 	}
 
 	return err;
@@ -77,7 +77,6 @@ Error Pps::loadColorGradingTexture(CString filename)
 	ANKI_ASSERT(m_lut->getHeight() == LUT_SIZE);
 	ANKI_ASSERT(m_lut->getDepth() == LUT_SIZE);
 
-	m_lutDirty = true;
 	return ErrorCode::NONE;
 }
 
@@ -90,68 +89,76 @@ Error Pps::run(RenderingContext& ctx)
 	Bool dbgEnabled = m_r->getDbg().getEnabled();
 
 	// Get or create the ppline
-	PipelinePtr& ppline = m_ppline[drawToDefaultFb][dbgEnabled];
+	ShaderProgramPtr& prog = m_prog[drawToDefaultFb][dbgEnabled];
 
-	if(!ppline)
+	if(!prog)
 	{
 		// Need to create it
 
 		ShaderResourcePtr& frag = m_frag[drawToDefaultFb][dbgEnabled];
 		if(!frag)
 		{
-			StringAuto pps(ctx.m_tempAllocator);
-
-			pps.sprintf("#define BLOOM_ENABLED %u\n"
-						"#define SHARPEN_ENABLED %u\n"
-						"#define FBO_WIDTH %u\n"
-						"#define FBO_HEIGHT %u\n"
-						"#define LUT_SIZE %u.0\n"
-						"#define DBG_ENABLED %u\n"
-						"#define DRAW_TO_DEFAULT %u\n",
+			ANKI_CHECK(m_r->createShaderf("shaders/Pps.frag.glsl",
+				frag,
+				"#define BLOOM_ENABLED %u\n"
+				"#define SHARPEN_ENABLED %u\n"
+				"#define FBO_WIDTH %u\n"
+				"#define FBO_HEIGHT %u\n"
+				"#define LUT_SIZE %u.0\n"
+				"#define DBG_ENABLED %u\n"
+				"#define DRAW_TO_DEFAULT %u\n"
+				"#define SMAA_ENABLED 1\n"
+				"#define SMAA_RT_METRICS vec4(%f, %f, %f, %f)\n"
+				"#define SMAA_PRESET_%s\n"
+				"#define FB_SIZE vec2(float(%u), float(%u))\n",
 				true,
 				m_sharpenEnabled,
 				m_r->getWidth(),
 				m_r->getHeight(),
 				LUT_SIZE,
 				dbgEnabled,
-				drawToDefaultFb);
-
-			ANKI_CHECK(getResourceManager().loadResourceToCache(frag, "shaders/Pps.frag.glsl", pps.toCString(), "r_"));
+				drawToDefaultFb,
+				1.0 / m_r->getWidth(),
+				1.0 / m_r->getHeight(),
+				F32(m_r->getWidth()),
+				F32(m_r->getHeight()),
+				&m_r->getSmaa().m_qualityPerset[0],
+				m_r->getWidth(),
+				m_r->getHeight()));
 		}
 
-		ColorStateInfo colorState;
-		colorState.m_attachmentCount = 1;
-		if(drawToDefaultFb)
+		if(!m_vert)
 		{
-			colorState.m_attachments[0].m_format.m_components = ComponentFormat::DEFAULT_FRAMEBUFFER;
+			ANKI_CHECK(m_r->createShaderf("shaders/Pps.vert.glsl",
+				m_vert,
+				"#define SMAA_ENABLED 1\n"
+				"#define SMAA_RT_METRICS vec4(%f, %f, %f, %f)\n"
+				"#define SMAA_PRESET_%s\n",
+				1.0 / m_r->getWidth(),
+				1.0 / m_r->getHeight(),
+				F32(m_r->getWidth()),
+				F32(m_r->getHeight()),
+				&m_r->getSmaa().m_qualityPerset[0]));
 		}
-		else
-		{
-			colorState.m_attachments[0].m_format = RT_PIXEL_FORMAT;
-		}
-		m_r->createDrawQuadPipeline(frag->getGrShader(), colorState, ppline);
+
+		prog = getGrManager().newInstance<ShaderProgram>(m_vert->getGrShader(), frag->getGrShader());
 	}
 
-	// Get or create the resource group
-	ResourceGroupPtr& rsrc = m_rcGroup[dbgEnabled];
-	if(!rsrc || m_lutDirty)
+	// Bind stuff
+	cmdb->bindTexture(0, 0, m_r->getIs().getRt());
+	cmdb->bindTexture(0, 1, m_r->getBloom().m_upscale.m_rt);
+	cmdb->bindTexture(0, 2, m_lut->getGrTexture());
+	cmdb->bindTexture(0, 3, m_blueNoise->getGrTexture());
+	cmdb->bindTexture(0, 4, m_r->getSmaa().m_weights.m_rt);
+	if(dbgEnabled)
 	{
-		ResourceGroupInitInfo rcInit;
-		rcInit.m_textures[0].m_texture = m_r->getIs().getRt();
-		rcInit.m_textures[1].m_texture = m_r->getBloom().getFinalRt();
-		rcInit.m_textures[2].m_texture = m_lut->getGrTexture();
-		if(dbgEnabled)
-		{
-			rcInit.m_textures[3].m_texture = m_r->getDbg().getRt();
-		}
-
-		rcInit.m_storageBuffers[0].m_buffer = m_r->getTm().getAverageLuminanceBuffer();
-		rcInit.m_storageBuffers[0].m_usage = BufferUsageBit::STORAGE_FRAGMENT_READ;
-
-		rsrc = getGrManager().newInstance<ResourceGroup>(rcInit);
-
-		m_lutDirty = false;
+		cmdb->bindTexture(0, 5, m_r->getDbg().getRt());
 	}
+
+	cmdb->bindStorageBuffer(0, 0, m_r->getTm().m_luminanceBuff, 0, MAX_PTR_SIZE);
+
+	Vec4* uniforms = allocateAndBindUniforms<Vec4*>(sizeof(Vec4), cmdb, 0, 0);
+	uniforms->x() = F32(m_r->getFrameCount() % m_blueNoise->getLayerCount());
 
 	// Get or create FB
 	FramebufferPtr* fb = nullptr;
@@ -171,8 +178,7 @@ Error Pps::run(RenderingContext& ctx)
 
 	cmdb->beginRenderPass(*fb);
 	cmdb->setViewport(0, 0, width, height);
-	cmdb->bindPipeline(ppline);
-	cmdb->bindResourceGroup(rsrc, 0, nullptr);
+	cmdb->bindShaderProgram(prog);
 	m_r->drawQuad(cmdb);
 	cmdb->endRenderPass();
 

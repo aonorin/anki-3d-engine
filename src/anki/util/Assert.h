@@ -1,14 +1,14 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
-#include <anki/Config.h>
+#include <anki/util/Common.h>
 
 /// Assertion. Print an error and stop the debugger (if it runs through a debugger) and then abort.
-#if !ANKI_ASSERTIONS
+#if !ANKI_EXTRA_CHECKS
 #define ANKI_ASSERT(x) ((void)0)
 #define ANKI_ASSERTS_ENABLED 0
 #else

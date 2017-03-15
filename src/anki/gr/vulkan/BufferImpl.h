@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -6,7 +6,7 @@
 #pragma once
 
 #include <anki/gr/vulkan/VulkanObject.h>
-#include <anki/gr/vulkan/GpuMemoryAllocator.h>
+#include <anki/gr/vulkan/GpuMemoryManager.h>
 
 namespace anki
 {
@@ -34,7 +34,7 @@ public:
 		ANKI_ASSERT(isCreated());
 		ANKI_ASSERT(m_mapped);
 
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 		m_mapped = false;
 #endif
 		// TODO Flush or invalidate caches
@@ -66,13 +66,13 @@ public:
 
 private:
 	VkBuffer m_handle = VK_NULL_HANDLE;
-	GpuMemoryAllocationHandle m_memHandle;
+	GpuMemoryHandle m_memHandle;
 	BufferMapAccessBit m_access = BufferMapAccessBit::NONE;
 	U32 m_size = 0;
 	VkMemoryPropertyFlags m_memoryFlags = 0;
 	BufferUsageBit m_usage = BufferUsageBit::NONE;
 
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 	Bool8 m_mapped = false;
 #endif
 

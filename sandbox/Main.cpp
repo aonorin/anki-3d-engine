@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -44,7 +44,7 @@ Error MyApp::init(int argc, char* argv[])
 	MainRenderer& renderer = getMainRenderer();
 	ResourceManager& resources = getResourceManager();
 
-	renderer.getOffscreenRenderer().getVolumetric().setFog(Vec3(1.0, 0.9, 0.9), 0.7);
+	renderer.getOffscreenRenderer().getVolumetric().setFogParticleColor(Vec3(1.0, 0.9, 0.9) * 0.009);
 
 	if(getenv("PROFILE"))
 	{
@@ -76,7 +76,7 @@ Error MyApp::init(int argc, char* argv[])
 		"player", pnode, cam.getComponent<MoveComponent>().getLocalOrigin() - Vec4(0.0, 1.0, 0.0, 0.0)));
 
 	cam.getComponent<MoveComponent>().setLocalTransform(
-		Transform(Vec4(0.0), Mat3x4(Euler(toRad(0.0), toRad(180.0), toRad(0.0))), 1.0));
+		Transform(Vec4(0.0, 0.0, 0.0, 0.0), Mat3x4::getIdentity(), 1.0));
 
 	pnode->addChild(&cam);
 #endif
@@ -118,8 +118,8 @@ Error MyApp::userMainLoop(Bool& quit)
 	{
 		/*Vec3 origin = mover->getWorldTransform().getOrigin().xyz();
 		printf("%f %f %f\n", origin.x(), origin.y(), origin.z());*/
-		mover->setLocalOrigin(Vec4(0.0));
-		mover->setLocalRotation(Mat3x4::getIdentity());
+		mover->setLocalOrigin(Vec4(81.169312, -2.309618, 17.088392, 0.0));
+		// mover->setLocalRotation(Mat3x4::getIdentity());
 	}
 
 	if(in.getKey(KeyCode::F1) == 1)
@@ -190,6 +190,11 @@ Error MyApp::userMainLoop(Bool& quit)
 		mover->rotateLocalX(ang * in.getMousePosition().y() * mouseSensivity);
 	}
 #endif
+
+	if(in.getEvent(InputEvent::WINDOW_CLOSED))
+	{
+		quit = true;
+	}
 
 	if(m_profile && getGlobalTimestamp() == 500)
 	{

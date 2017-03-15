@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -12,6 +12,7 @@
 #include <anki/scene/ReflectionProbeComponent.h>
 #include <anki/scene/ReflectionProxyComponent.h>
 #include <anki/scene/OccluderComponent.h>
+#include <anki/scene/DecalComponent.h>
 #include <anki/scene/Light.h>
 #include <anki/scene/MoveComponent.h>
 #include <anki/renderer/MainRenderer.h>
@@ -125,6 +126,7 @@ void VisibilityContext::submitNewWork(FrustumComponent& frc, ThreadHive& hive)
 		test.m_sectorsCtx = &gather->m_sectorsCtx;
 		test.m_taskIdx = i;
 		test.m_taskCount = testCount;
+		test.m_r = r;
 
 		auto& task = testTasks[i];
 		task.m_callback = VisibilityTestTask::callback;
@@ -239,6 +241,8 @@ void VisibilityTestTask::test(ThreadHive& hive)
 	Bool wantsReflectionProxies =
 		testedFrc.visibilityTestsEnabled(FrustumComponentVisibilityTestFlag::REFLECTION_PROXIES);
 
+	Bool wantsDecals = testedFrc.visibilityTestsEnabled(FrustumComponentVisibilityTestFlag::DECALS);
+
 	// Chose the test range and a few other things
 	PtrSize start, end;
 	ThreadPoolTask::choseStartEnd(m_taskIdx, m_taskCount, m_sectorsCtx->getVisibleSceneNodeCount(), start, end);
@@ -288,6 +292,12 @@ void VisibilityTestTask::test(ThreadHive& hive)
 			wantNode = true;
 		}
 
+		DecalComponent* decalc = node.tryGetComponent<DecalComponent>();
+		if(decalc && wantsDecals)
+		{
+			wantNode = true;
+		}
+
 		if(ANKI_UNLIKELY(!wantNode))
 		{
 			// Skip node
@@ -301,7 +311,7 @@ void VisibilityTestTask::test(ThreadHive& hive)
 			U8 m_idx;
 			Vec4 m_origin;
 		};
-		Array<SpatialTemp, ANKI_GL_MAX_SUB_DRAWCALLS> sps;
+		Array<SpatialTemp, MAX_SUB_DRAWCALLS> sps;
 
 		U spIdx = 0;
 		U count = 0;
@@ -372,21 +382,37 @@ void VisibilityTestTask::test(ThreadHive& hive)
 
 		if(lc && wantsLightComponents)
 		{
-			VisibilityGroupType gt;
-			switch(lc->getLightType())
+			// Perform an additional check against the rasterizer
+			Bool in;
+			if(lc->getShadowEnabled())
 			{
-			case LightComponent::LightType::POINT:
-				gt = VisibilityGroupType::LIGHTS_POINT;
-				break;
-			case LightComponent::LightType::SPOT:
-				gt = VisibilityGroupType::LIGHTS_SPOT;
-				break;
-			default:
-				ANKI_ASSERT(0);
-				gt = VisibilityGroupType::TYPE_COUNT;
+				ANKI_ASSERT(spIdx == 1);
+				const SpatialComponent& sc = *sps[0].m_sp;
+				in = testAgainstRasterizer(sc.getSpatialCollisionShape(), sc.getAabb());
+			}
+			else
+			{
+				in = true;
 			}
 
-			visible->moveBack(alloc, gt, visibleNode);
+			if(in)
+			{
+				VisibilityGroupType gt;
+				switch(lc->getLightComponentType())
+				{
+				case LightComponentType::POINT:
+					gt = VisibilityGroupType::LIGHTS_POINT;
+					break;
+				case LightComponentType::SPOT:
+					gt = VisibilityGroupType::LIGHTS_SPOT;
+					break;
+				default:
+					ANKI_ASSERT(0);
+					gt = VisibilityGroupType::TYPE_COUNT;
+				}
+
+				visible->moveBack(alloc, gt, visibleNode);
+			}
 		}
 
 		if(lfc && wantsFlareComponents)
@@ -396,12 +422,22 @@ void VisibilityTestTask::test(ThreadHive& hive)
 
 		if(reflc && wantsReflectionProbes)
 		{
-			visible->moveBack(alloc, VisibilityGroupType::REFLECTION_PROBES, visibleNode);
+			ANKI_ASSERT(spIdx == 1);
+			const SpatialComponent& sc = *sps[0].m_sp;
+			if(testAgainstRasterizer(sc.getSpatialCollisionShape(), sc.getAabb()))
+			{
+				visible->moveBack(alloc, VisibilityGroupType::REFLECTION_PROBES, visibleNode);
+			}
 		}
 
 		if(proxyc && wantsReflectionProxies)
 		{
 			visible->moveBack(alloc, VisibilityGroupType::REFLECTION_PROXIES, visibleNode);
+		}
+
+		if(decalc && wantsDecals)
+		{
+			visible->moveBack(alloc, VisibilityGroupType::DECALS, visibleNode);
 		}
 
 		// Add more frustums to the list
@@ -471,10 +507,9 @@ void CombineResultsTask::combine()
 		visible->getEnd(VisibilityGroupType::RENDERABLES_MS),
 		comp);
 
-	// TODO: Reverse the sort
 	std::sort(visible->getBegin(VisibilityGroupType::RENDERABLES_FS),
 		visible->getEnd(VisibilityGroupType::RENDERABLES_FS),
-		comp);
+		RevDistanceSortFunctor());
 
 	std::sort(visible->getBegin(VisibilityGroupType::REFLECTION_PROBES),
 		visible->getEnd(VisibilityGroupType::REFLECTION_PROBES),

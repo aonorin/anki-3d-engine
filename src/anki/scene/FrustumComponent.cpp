@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -41,7 +41,6 @@ Error FrustumComponent::update(SceneNode& node, F32, F32, Bool& updated)
 	{
 		updated = true;
 		m_pm = m_frustum->calculateProjectionMatrix();
-		computeProjectionParams();
 	}
 
 	if(m_flags.get(TRANSFORM_MARKED_FOR_UPDATE))
@@ -57,33 +56,6 @@ Error FrustumComponent::update(SceneNode& node, F32, F32, Bool& updated)
 	}
 
 	return ErrorCode::NONE;
-}
-
-void FrustumComponent::computeProjectionParams()
-{
-	const Mat4& m = m_pm;
-
-	if(m_frustum->getType() == Frustum::Type::PERSPECTIVE)
-	{
-		// First, z' = (m * Pv) / 2 + 0.5 where Pv is the view space position.
-		// Solving that for Pv.z we get
-		// Pv.z = A / (z' + B)
-		// where A = (-m23 / 2) and B = (m22/2 - 0.5)
-		// so we save the A and B in the projection params vector
-		m_projParams.z() = -m(2, 3) * 0.5;
-		m_projParams.w() = m(2, 2) * 0.5 - 0.5;
-
-		// Using the same logic the Pv.x = x' * w / m00
-		// so Pv.x = x' * Pv.z * (-1 / m00)
-		m_projParams.x() = -1.0 / m(0, 0);
-
-		// Same for y
-		m_projParams.y() = -1.0 / m(1, 1);
-	}
-	else
-	{
-		ANKI_ASSERT(0 && "TODO");
-	}
 }
 
 } // end namespace anki

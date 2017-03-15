@@ -1,10 +1,11 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
+#include <anki/core/Common.h>
 #include <anki/util/Allocator.h>
 #include <anki/util/String.h>
 #include <anki/util/Ptr.h>
@@ -33,6 +34,7 @@ class SceneGraph;
 class ScriptManager;
 class ResourceManager;
 class ResourceFilesystem;
+class StagingGpuMemoryManager;
 
 /// The core class of the engine.
 class App
@@ -148,6 +150,7 @@ private:
 	NativeWindow* m_window = nullptr;
 	Input* m_input = nullptr;
 	GrManager* m_gr = nullptr;
+	StagingGpuMemoryManager* m_stagingMem = nullptr;
 	PhysicsWorld* m_physics = nullptr;
 	ResourceFilesystem* m_resourceFs = nullptr;
 	ResourceManager* m_resources = nullptr;

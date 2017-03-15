@@ -1,10 +1,11 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
+#include <anki/script/Common.h>
 #include <anki/util/Assert.h>
 #include <anki/util/StdTypes.h>
 #include <anki/util/Allocator.h>
@@ -79,7 +80,7 @@ public:
 	}
 
 private:
-	static constexpr U64 GC_MASK = 1ul << 63ul;
+	static constexpr U64 GC_MASK = U64(1) << U64(63);
 
 	I64 m_sig = 0; ///< Signature to identify the user data.
 

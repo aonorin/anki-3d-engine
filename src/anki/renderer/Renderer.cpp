@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,35 +15,26 @@
 #include <anki/renderer/Sm.h>
 #include <anki/renderer/Pps.h>
 #include <anki/renderer/Ssao.h>
-#include <anki/renderer/Sslf.h>
 #include <anki/renderer/Bloom.h>
 #include <anki/renderer/Tm.h>
 #include <anki/renderer/Fs.h>
 #include <anki/renderer/Lf.h>
 #include <anki/renderer/Dbg.h>
-#include <anki/renderer/Tiler.h>
-#include <anki/renderer/Upsample.h>
+#include <anki/renderer/FsUpscale.h>
 #include <anki/renderer/DownscaleBlur.h>
 #include <anki/renderer/Volumetric.h>
+#include <anki/renderer/DepthDownscale.h>
+#include <anki/renderer/Smaa.h>
+
+#include <cstdarg> // For var args
 
 namespace anki
 {
 
-/// See shader for documentation
-class RendererCommonUniforms
-{
-public:
-	Vec4 m_projectionParams;
-	Vec4 m_nearFarLinearizeDepth;
-	Mat4 m_projectionMatrix;
-};
-
 static Bool threadWillDoWork(
 	const RenderingContext& ctx, VisibilityGroupType typeOfWork, U32 threadId, PtrSize threadCount)
 {
-	const VisibilityTestResults& vis = ctx.m_frustumComponent->getVisibilityTestResults();
-
-	U problemSize = vis.getCount(typeOfWork);
+	U problemSize = ctx.m_visResults->getCount(typeOfWork);
 	PtrSize start, end;
 	ThreadPoolTask::choseStartEnd(threadId, threadCount, problemSize, start, end);
 
@@ -62,6 +53,7 @@ Renderer::~Renderer()
 Error Renderer::init(ThreadPool* threadpool,
 	ResourceManager* resources,
 	GrManager* gl,
+	StagingGpuMemoryManager* stagingMem,
 	HeapAllocator<U8> alloc,
 	StackAllocator<U8> frameAlloc,
 	const ConfigSet& config,
@@ -72,6 +64,7 @@ Error Renderer::init(ThreadPool* threadpool,
 	m_threadpool = threadpool;
 	m_resources = resources;
 	m_gr = gl;
+	m_stagingMem = stagingMem;
 	m_alloc = alloc;
 	m_frameAlloc = frameAlloc;
 	m_willDrawToDefaultFbo = willDrawToDefaultFbo;
@@ -79,7 +72,7 @@ Error Renderer::init(ThreadPool* threadpool,
 	Error err = initInternal(config);
 	if(err)
 	{
-		ANKI_LOGE("Failed to initialize the renderer");
+		ANKI_R_LOGE("Failed to initialize the renderer");
 	}
 
 	return err;
@@ -90,42 +83,32 @@ Error Renderer::initInternal(const ConfigSet& config)
 	// Set from the config
 	m_width = config.getNumber("width");
 	m_height = config.getNumber("height");
-	ANKI_ASSERT(isAligned(TILE_SIZE, m_width) && isAligned(TILE_SIZE, m_height));
-	ANKI_LOGI("Initializing offscreen renderer. Size %ux%u", m_width, m_height);
+	ANKI_R_LOGI("Initializing offscreen renderer. Size %ux%u", m_width, m_height);
 
 	m_lodDistance = config.getNumber("lodDistance");
 	m_frameCount = 0;
-	m_samples = config.getNumber("samples");
-	m_tileCountXY.x() = m_width / TILE_SIZE;
-	m_tileCountXY.y() = m_height / TILE_SIZE;
-	m_tileCount = m_tileCountXY.x() * m_tileCountXY.y();
 
 	m_tessellation = config.getNumber("tessellation");
 
 	// A few sanity checks
-	if(m_samples != 1 && m_samples != 4 && m_samples != 8 && m_samples != 16 && m_samples != 32)
-	{
-		ANKI_LOGE("Incorrect samples");
-		return ErrorCode::USER_DATA;
-	}
-
 	if(m_width < 10 || m_height < 10)
 	{
-		ANKI_LOGE("Incorrect sizes");
+		ANKI_R_LOGE("Incorrect sizes");
 		return ErrorCode::USER_DATA;
 	}
 
-	if(m_width % m_tileCountXY.x() != 0)
 	{
-		ANKI_LOGE("Width is not multiple of tile width");
-		return ErrorCode::USER_DATA;
+		TextureInitInfo texinit;
+		texinit.m_width = texinit.m_height = 4;
+		texinit.m_usage = TextureUsageBit::SAMPLED_FRAGMENT;
+		texinit.m_format = PixelFormat(ComponentFormat::R8G8B8A8, TransformFormat::UNORM);
+		texinit.m_usageWhenEncountered = TextureUsageBit::SAMPLED_FRAGMENT;
+		texinit.m_initialUsage = TextureUsageBit::SAMPLED_FRAGMENT;
+		m_dummyTex = getGrManager().newInstance<Texture>(texinit);
 	}
 
-	if(m_height % m_tileCountXY.y() != 0)
-	{
-		ANKI_LOGE("Height is not multiple of tile height");
-		return ErrorCode::USER_DATA;
-	}
+	m_dummyBuff = getGrManager().newInstance<Buffer>(
+		getDummyBufferSize(), BufferUsageBit::UNIFORM_ALL | BufferUsageBit::STORAGE_ALL, BufferMapAccessBit::NONE);
 
 	// quad setup
 	ANKI_CHECK(m_resources->loadResource("shaders/Quad.vert.glsl", m_drawQuadVert));
@@ -143,11 +126,14 @@ Error Renderer::initInternal(const ConfigSet& config)
 	m_is.reset(m_alloc.newInstance<Is>(this));
 	ANKI_CHECK(m_is->init(config));
 
-	m_fs.reset(m_alloc.newInstance<Fs>(this));
-	ANKI_CHECK(m_fs->init(config));
+	m_depth.reset(m_alloc.newInstance<DepthDownscale>(this));
+	ANKI_CHECK(m_depth->init(config));
 
 	m_vol.reset(m_alloc.newInstance<Volumetric>(this));
 	ANKI_CHECK(m_vol->init(config));
+
+	m_fs.reset(m_alloc.newInstance<Fs>(this));
+	ANKI_CHECK(m_fs->init(config));
 
 	m_lf.reset(m_alloc.newInstance<Lf>(this));
 	ANKI_CHECK(m_lf->init(config));
@@ -155,20 +141,20 @@ Error Renderer::initInternal(const ConfigSet& config)
 	m_ssao.reset(m_alloc.newInstance<Ssao>(this));
 	ANKI_CHECK(m_ssao->init(config));
 
-	m_upsample.reset(m_alloc.newInstance<Upsample>(this));
-	ANKI_CHECK(m_upsample->init(config));
-
-	m_tm.reset(getAllocator().newInstance<Tm>(this));
-	ANKI_CHECK(m_tm->create(config));
+	m_fsUpscale.reset(m_alloc.newInstance<FsUpscale>(this));
+	ANKI_CHECK(m_fsUpscale->init(config));
 
 	m_downscale.reset(getAllocator().newInstance<DownscaleBlur>(this));
 	ANKI_CHECK(m_downscale->init(config));
 
+	m_tm.reset(getAllocator().newInstance<Tm>(this));
+	ANKI_CHECK(m_tm->init(config));
+
+	m_smaa.reset(getAllocator().newInstance<Smaa>(this));
+	ANKI_CHECK(m_smaa->init(config));
+
 	m_bloom.reset(m_alloc.newInstance<Bloom>(this));
 	ANKI_CHECK(m_bloom->init(config));
-
-	m_sslf.reset(m_alloc.newInstance<Sslf>(this));
-	ANKI_CHECK(m_sslf->init(config));
 
 	m_pps.reset(m_alloc.newInstance<Pps>(this));
 	ANKI_CHECK(m_pps->init(config));
@@ -181,26 +167,10 @@ Error Renderer::initInternal(const ConfigSet& config)
 
 Error Renderer::render(RenderingContext& ctx)
 {
-	FrustumComponent& frc = *ctx.m_frustumComponent;
 	CommandBufferPtr& cmdb = ctx.m_commandBuffer;
 
-	// Misc
-	ANKI_ASSERT(frc.getFrustum().getType() == Frustum::Type::PERSPECTIVE);
-
-	// Write the common uniforms
-	RendererCommonUniforms* commonUniforms =
-		static_cast<RendererCommonUniforms*>(getGrManager().allocateFrameTransientMemory(
-			sizeof(*commonUniforms), BufferUsageBit::UNIFORM_ALL, m_commonUniformsToken));
-
-	commonUniforms->m_projectionParams = frc.getProjectionParameters();
-	commonUniforms->m_nearFarLinearizeDepth.x() = frc.getFrustum().getNear();
-	commonUniforms->m_nearFarLinearizeDepth.y() = frc.getFrustum().getFar();
-	computeLinearizeDepthOptimal(frc.getFrustum().getNear(),
-		frc.getFrustum().getFar(),
-		commonUniforms->m_nearFarLinearizeDepth.z(),
-		commonUniforms->m_nearFarLinearizeDepth.w());
-
-	commonUniforms->m_projectionMatrix = frc.getProjectionMatrix();
+	ctx.m_prevViewProjMat = m_prevViewProjMat;
+	ctx.m_prevCamTransform = m_prevCamTransform;
 
 	// Check if resources got loaded
 	if(m_prevLoadRequestCount != m_resources->getLoadingRequestCount()
@@ -223,92 +193,126 @@ Error Renderer::render(RenderingContext& ctx)
 	m_lf->resetOcclusionQueries(ctx, cmdb);
 	ANKI_CHECK(buildCommandBuffers(ctx));
 
-	// Perform image transitions
+	// Barriers
 	m_sm->setPreRunBarriers(ctx);
 	m_ms->setPreRunBarriers(ctx);
-	m_is->setPreRunBarriers(ctx);
-	m_fs->setPreRunBarriers(ctx);
-	m_ssao->setPreRunBarriers(ctx);
-	m_bloom->setPreRunBarriers(ctx);
 
+	// Passes
 	m_sm->run(ctx);
-
 	m_ms->run(ctx);
 
+	// Barriers
 	m_ms->setPostRunBarriers(ctx);
 	m_sm->setPostRunBarriers(ctx);
+	m_depth->m_hd.setPreRunBarriers(ctx);
+	m_is->setPreRunBarriers(ctx);
 
+	// Passes
 	m_is->run(ctx);
+	m_depth->m_hd.run(ctx);
 
-	cmdb->setTextureSurfaceBarrier(m_ms->getDepthRt(),
-		TextureUsageBit::SAMPLED_FRAGMENT,
-		TextureUsageBit::GENERATE_MIPMAPS,
-		TextureSurfaceInfo(0, 0, 0, 0));
+	// Barriers
+	m_depth->m_hd.setPostRunBarriers(ctx);
+	m_depth->m_qd.setPreRunBarriers(ctx);
 
-	cmdb->setTextureSurfaceBarrier(m_ms->getRt2(),
-		TextureUsageBit::SAMPLED_FRAGMENT,
-		TextureUsageBit::GENERATE_MIPMAPS,
-		TextureSurfaceInfo(0, 0, 0, 0));
+	// Passes
+	m_depth->m_qd.run(ctx);
 
-	cmdb->generateMipmaps2d(m_ms->getDepthRt(), 0, 0);
-	cmdb->generateMipmaps2d(m_ms->getRt2(), 0, 0);
+	// Barriers
+	m_depth->m_qd.setPostRunBarriers(ctx);
+	m_vol->m_main.setPreRunBarriers(ctx);
+	m_ssao->m_main.setPreRunBarriers(ctx);
 
-	for(U i = 0; i < m_ms->getDepthRtMipmapCount(); ++i)
-	{
-		cmdb->setTextureSurfaceBarrier(m_ms->getDepthRt(),
-			TextureUsageBit::GENERATE_MIPMAPS,
-			TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ,
-			TextureSurfaceInfo(i, 0, 0, 0));
+	// Passes
+	m_vol->m_main.run(ctx);
+	m_ssao->m_main.run(ctx);
 
-		cmdb->setTextureSurfaceBarrier(m_ms->getRt2(),
-			TextureUsageBit::GENERATE_MIPMAPS,
-			TextureUsageBit::SAMPLED_FRAGMENT,
-			TextureSurfaceInfo(i, 0, 0, 0));
-	}
+	// Barriers
+	m_vol->m_main.setPostRunBarriers(ctx);
+	m_vol->m_hblur.setPreRunBarriers(ctx);
+	m_ssao->m_main.setPostRunBarriers(ctx);
+	m_ssao->m_hblur.setPreRunBarriers(ctx);
 
+	// Misc
 	m_lf->updateIndirectInfo(ctx, cmdb);
 
+	// Passes
+	m_vol->m_hblur.run(ctx);
+	m_ssao->m_hblur.run(ctx);
+
+	// Barriers
+	m_vol->m_hblur.setPostRunBarriers(ctx);
+	m_vol->m_vblur.setPreRunBarriers(ctx);
+	m_ssao->m_hblur.setPostRunBarriers(ctx);
+	m_ssao->m_vblur.setPreRunBarriers(ctx);
+
+	// Passes
+	m_vol->m_vblur.run(ctx);
+	m_ssao->m_vblur.run(ctx);
+
+	// Barriers
+	m_vol->m_vblur.setPostRunBarriers(ctx);
+	m_ssao->m_vblur.setPostRunBarriers(ctx);
+	m_fs->setPreRunBarriers(ctx);
+
+	// Passes
 	m_fs->run(ctx);
 
-	m_ssao->run(ctx);
-
-	m_ssao->setPostRunBarriers(ctx);
+	// Barriers
 	m_fs->setPostRunBarriers(ctx);
 
-	m_upsample->run(ctx);
+	// Passes
+	m_fsUpscale->run(ctx);
 
+	// Barriers
 	cmdb->setTextureSurfaceBarrier(m_is->getRt(),
 		TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ_WRITE,
 		TextureUsageBit::SAMPLED_FRAGMENT,
 		TextureSurfaceInfo(0, 0, 0, 0));
+	m_downscale->setPreRunBarriers(ctx);
 
+	// Passes
 	m_downscale->run(ctx);
 
-	cmdb->setTextureSurfaceBarrier(m_is->getRt(),
-		TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE,
-		TextureUsageBit::SAMPLED_COMPUTE,
-		TextureSurfaceInfo(m_is->getRtMipmapCount() - 1, 0, 0, 0));
+	// Barriers
+	m_downscale->setPostRunBarriers(ctx);
+	m_smaa->m_edge.setPreRunBarriers(ctx);
 
+	// Passes
 	m_tm->run(ctx);
+	m_smaa->m_edge.run(ctx);
 
-	cmdb->setTextureSurfaceBarrier(m_is->getRt(),
-		TextureUsageBit::SAMPLED_COMPUTE,
-		TextureUsageBit::SAMPLED_FRAGMENT,
-		TextureSurfaceInfo(m_is->getRtMipmapCount() - 1, 0, 0, 0));
+	// Barriers
+	m_smaa->m_edge.setPostRunBarriers(ctx);
+	m_bloom->m_extractExposure.setPreRunBarriers(ctx);
+	m_smaa->m_weights.setPreRunBarriers(ctx);
 
-	m_bloom->run(ctx);
-	m_sslf->run(ctx);
-	cmdb->endRenderPass();
-	m_bloom->setPostRunBarriers(ctx);
+	// Passes
+	m_bloom->m_extractExposure.run(ctx);
+	m_smaa->m_weights.run(ctx);
+
+	// Barriers
+	m_bloom->m_extractExposure.setPostRunBarriers(ctx);
+	m_bloom->m_upscale.setPreRunBarriers(ctx);
+	m_smaa->m_weights.setPostRunBarriers(ctx);
+
+	// Passes
+	m_bloom->m_upscale.run(ctx);
+
+	// Barriers
+	m_bloom->m_upscale.setPostRunBarriers(ctx);
 
 	if(m_dbg->getEnabled())
 	{
 		ANKI_CHECK(m_dbg->run(ctx));
 	}
 
+	// Passes
 	ANKI_CHECK(m_pps->run(ctx));
 
 	++m_frameCount;
+	m_prevViewProjMat = ctx.m_viewProjMat;
+	m_prevCamTransform = ctx.m_camTrfMat;
 
 	return ErrorCode::NONE;
 }
@@ -331,18 +335,13 @@ Vec3 Renderer::unproject(
 	return out.xyz();
 }
 
-void Renderer::createRenderTarget(
-	U32 w, U32 h, const PixelFormat& format, TextureUsageBit usage, SamplingFilter filter, U mipsCount, TexturePtr& rt)
+TextureInitInfo Renderer::create2DRenderTargetInitInfo(
+	U32 w, U32 h, const PixelFormat& format, TextureUsageBit usage, SamplingFilter filter, U mipsCount, CString name)
 {
-	// Not very important but keep the resolution of render targets aligned to 16
-	if(0)
-	{
-		ANKI_ASSERT(isAligned(16, w));
-		ANKI_ASSERT(isAligned(16, h));
-	}
-
+	ANKI_ASSERT(!!(usage & TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE));
 	TextureInitInfo init;
 
+	init.m_name = name;
 	init.m_width = w;
 	init.m_height = h;
 	init.m_depth = 1;
@@ -364,23 +363,69 @@ void Renderer::createRenderTarget(
 	init.m_sampling.m_repeat = false;
 	init.m_sampling.m_anisotropyLevel = 0;
 
-	rt = m_gr->newInstance<Texture>(init);
+	return init;
 }
 
-void Renderer::createDrawQuadPipeline(ShaderPtr frag, const ColorStateInfo& colorState, PipelinePtr& ppline)
+TexturePtr Renderer::createAndClearRenderTarget(const TextureInitInfo& inf)
 {
-	PipelineInitInfo init;
+	ANKI_ASSERT(!!(inf.m_usage & TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE));
 
-	init.m_inputAssembler.m_topology = PrimitiveTopology::TRIANGLE_STRIP;
+	// Create tex
+	TexturePtr tex = m_gr->newInstance<Texture>(inf);
 
-	init.m_depthStencil.m_depthWriteEnabled = false;
-	init.m_depthStencil.m_depthCompareFunction = CompareOperation::ALWAYS;
+	// Clear all surfaces
+	CommandBufferInitInfo cmdbinit;
+	cmdbinit.m_flags = CommandBufferFlag::SMALL_BATCH | CommandBufferFlag::GRAPHICS_WORK;
+	CommandBufferPtr cmdb = m_gr->newInstance<CommandBuffer>(cmdbinit);
 
-	init.m_color = colorState;
+	const U faceCount = (inf.m_type == TextureType::CUBE || inf.m_type == TextureType::CUBE_ARRAY) ? 6 : 1;
 
-	init.m_shaders[U(ShaderType::VERTEX)] = m_drawQuadVert->getGrShader();
-	init.m_shaders[U(ShaderType::FRAGMENT)] = frag;
-	ppline = m_gr->newInstance<Pipeline>(init);
+	for(U mip = 0; mip < inf.m_mipmapsCount; ++mip)
+	{
+		for(U face = 0; face < faceCount; ++face)
+		{
+			for(U layer = 0; layer < inf.m_layerCount; ++layer)
+			{
+				TextureSurfaceInfo surf(mip, 0, face, layer);
+
+				FramebufferInitInfo fbInit;
+
+				if(inf.m_format.m_components >= ComponentFormat::FIRST_DEPTH_STENCIL
+					&& inf.m_format.m_components <= ComponentFormat::LAST_DEPTH_STENCIL)
+				{
+					fbInit.m_depthStencilAttachment.m_texture = tex;
+					fbInit.m_depthStencilAttachment.m_surface = surf;
+					fbInit.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::DEPTH_STENCIL;
+					fbInit.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::CLEAR;
+				}
+				else
+				{
+					fbInit.m_colorAttachmentCount = 1;
+					fbInit.m_colorAttachments[0].m_texture = tex;
+					fbInit.m_colorAttachments[0].m_surface = surf;
+					fbInit.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::CLEAR;
+					fbInit.m_colorAttachments[0].m_stencilLoadOperation = AttachmentLoadOperation::CLEAR;
+				}
+				FramebufferPtr fb = m_gr->newInstance<Framebuffer>(fbInit);
+
+				cmdb->setTextureSurfaceBarrier(
+					tex, TextureUsageBit::NONE, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE, surf);
+
+				cmdb->beginRenderPass(fb);
+				cmdb->endRenderPass();
+
+				if(!!inf.m_initialUsage)
+				{
+					cmdb->setTextureSurfaceBarrier(
+						tex, TextureUsageBit::FRAMEBUFFER_ATTACHMENT_WRITE, inf.m_initialUsage, surf);
+				}
+			}
+		}
+	}
+
+	cmdb->flush();
+
+	return tex;
 }
 
 Error Renderer::buildCommandBuffersInternal(RenderingContext& ctx, U32 threadId, PtrSize threadCount)
@@ -412,7 +457,7 @@ Error Renderer::buildCommandBuffersInternal(RenderingContext& ctx, U32 threadId,
 	if(ctx.m_fs.m_lastThreadWithWork == threadId)
 	{
 		m_lf->run(ctx, ctx.m_fs.m_commandBuffers[threadId]);
-		m_vol->run(ctx, ctx.m_fs.m_commandBuffers[threadId]);
+		m_fs->drawVolumetric(ctx, ctx.m_fs.m_commandBuffers[threadId]);
 	}
 	else if(threadId == threadCount - 1 && ctx.m_fs.m_lastThreadWithWork == MAX_U32)
 	{
@@ -423,11 +468,18 @@ Error Renderer::buildCommandBuffersInternal(RenderingContext& ctx, U32 threadId,
 			CommandBufferFlag::GRAPHICS_WORK | CommandBufferFlag::SECOND_LEVEL | CommandBufferFlag::SMALL_BATCH;
 		init.m_framebuffer = m_fs->getFramebuffer();
 		CommandBufferPtr cmdb = getGrManager().newInstance<CommandBuffer>(init);
+
+		// Inform on textures
+		cmdb->informTextureSurfaceCurrentUsage(
+			m_fs->getRt(), TextureSurfaceInfo(0, 0, 0, 0), TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ_WRITE);
+		cmdb->informTextureSurfaceCurrentUsage(m_depth->m_hd.m_depthRt,
+			TextureSurfaceInfo(0, 0, 0, 0),
+			TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ | TextureUsageBit::SAMPLED_FRAGMENT);
+
 		cmdb->setViewport(0, 0, m_fs->getWidth(), m_fs->getHeight());
-		cmdb->setPolygonOffset(0.0, 0.0);
 
 		m_lf->run(ctx, cmdb);
-		m_vol->run(ctx, cmdb);
+		m_fs->drawVolumetric(ctx, cmdb);
 
 		ctx.m_fs.m_commandBuffers[threadId] = cmdb;
 	}
@@ -475,8 +527,8 @@ Error Renderer::buildCommandBuffers(RenderingContext& ctx)
 	class Task : public ThreadPoolTask
 	{
 	public:
-		Renderer* m_r ANKI_DBG_NULLIFY_PTR;
-		RenderingContext* m_ctx ANKI_DBG_NULLIFY_PTR;
+		Renderer* m_r ANKI_DBG_NULLIFY;
+		RenderingContext* m_ctx ANKI_DBG_NULLIFY;
 
 		Error operator()(U32 threadId, PtrSize threadCount)
 		{
@@ -496,6 +548,30 @@ Error Renderer::buildCommandBuffers(RenderingContext& ctx)
 	ANKI_TRACE_STOP_EVENT(RENDERER_COMMAND_BUFFER_BUILDING);
 
 	return err;
+}
+
+Error Renderer::createShader(CString fname, ShaderResourcePtr& shader, CString extra)
+{
+	return m_resources->loadResourceToCache(shader, fname, &extra[0], "r_");
+}
+
+Error Renderer::createShaderf(CString fname, ShaderResourcePtr& shader, CString fmt, ...)
+{
+	Array<char, 512> buffer;
+	va_list args;
+
+	va_start(args, fmt);
+	I len = std::vsnprintf(&buffer[0], sizeof(buffer), &fmt[0], args);
+	va_end(args);
+	ANKI_ASSERT(len > 0 && len < I(sizeof(buffer) - 1));
+	(void)len;
+
+	return m_resources->loadResourceToCache(shader, fname, &buffer[0], "r_");
+}
+
+void Renderer::createDrawQuadShaderProgram(ShaderPtr frag, ShaderProgramPtr& prog)
+{
+	prog = m_gr->newInstance<ShaderProgram>(m_drawQuadVert->getGrShader(), frag);
 }
 
 } // end namespace anki

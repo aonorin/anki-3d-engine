@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -41,12 +41,9 @@ static Array<const char*, U(TraceEventType::COUNT)> eventNames = {{"SCENE_UPDATE
 	"BARRIER_WAIT"}};
 
 static Array<const char*, U(TraceCounterType::COUNT)> counterNames = {{"GR_DRAWCALLS",
-	"GR_DYNAMIC_UNIFORMS_SIZE",
-	"GR_DYNAMIC_STORAGE_SIZE",
 	"GR_VERTICES",
-	"GR_PIPELINES_CREATED",
-	"GR_PIPELINE_BINDS_SKIPPED",
-	"GR_PIPELINE_BINDS_HAPPENED",
+	"GL_PROGS_SKIPPED",
+	"VK_PIPELINES_CREATED",
 	"VK_PIPELINE_BARRIERS",
 	"VK_CMD_BUFFER_CREATE",
 	"VK_FENCE_CREATE",
@@ -56,12 +53,14 @@ static Array<const char*, U(TraceCounterType::COUNT)> counterNames = {{"GR_DRAWC
 	"RENDERER_MERGED_DRAWCALLS",
 	"RENDERER_REFLECTIONS",
 	"RESOURCE_ASYNC_TASKS",
-	"SCENE_NODES_UPDATED"}};
+	"SCENE_NODES_UPDATED",
+	"STAGING_UNIFORMS_SIZE",
+	"STAGING_STORAGE_SIZE"}};
 
 #define ANKI_TRACE_FILE_ERROR()                                                                                        \
 	if(err)                                                                                                            \
 	{                                                                                                                  \
-		ANKI_LOGE("Error writing the trace file");                                                                     \
+		ANKI_CORE_LOGE("Error writing the trace file");                                                                \
 	}
 
 const U MAX_EVENTS_DEPTH = 20;
@@ -80,6 +79,9 @@ Error TraceManager::create(HeapAllocator<U8> alloc, const CString& cacheDir)
 		m_disabled = true;
 		return ErrorCode::NONE;
 	}
+
+	memset(&m_perFrameCounters[0], 0, sizeof(m_perFrameCounters));
+	memset(&m_perRunCounters[0], 0, sizeof(m_perRunCounters));
 
 	// Create trace file
 	StringAuto fname(alloc);
@@ -146,7 +148,7 @@ void TraceManager::stopEvent(TraceEventType type)
 	}
 	else
 	{
-		ANKI_LOGW("Increase the buffered trace entries");
+		ANKI_CORE_LOGW("Increase the buffered trace entries");
 		m_perFrameCounters[U(TraceCounterType::COUNT) + U(type)].fetchAdd(0);
 	}
 }
@@ -252,7 +254,7 @@ void TraceManager::stopFrame()
 
 	if(err)
 	{
-		ANKI_LOGE("Error writing the trace file");
+		ANKI_CORE_LOGE("Error writing the trace file");
 	}
 }
 

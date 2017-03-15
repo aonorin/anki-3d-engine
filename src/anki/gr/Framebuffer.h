@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -24,26 +24,11 @@ public:
 	AttachmentLoadOperation m_loadOperation = AttachmentLoadOperation::CLEAR;
 	AttachmentStoreOperation m_storeOperation = AttachmentStoreOperation::STORE;
 	ClearValue m_clearValue;
-	TextureUsageBit m_usageInsideRenderPass = TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ_WRITE;
 
-	FramebufferAttachmentInfo() = default;
+	AttachmentLoadOperation m_stencilLoadOperation = AttachmentLoadOperation::CLEAR;
+	AttachmentStoreOperation m_stencilStoreOperation = AttachmentStoreOperation::STORE;
 
-	FramebufferAttachmentInfo(const FramebufferAttachmentInfo& b)
-	{
-		operator=(b);
-	}
-
-	~FramebufferAttachmentInfo() = default;
-
-	FramebufferAttachmentInfo& operator=(const FramebufferAttachmentInfo& b)
-	{
-		m_texture = b.m_texture;
-		m_surface = b.m_surface;
-		m_loadOperation = b.m_loadOperation;
-		m_storeOperation = b.m_storeOperation;
-		memcpy(&m_clearValue, &b.m_clearValue, sizeof(m_clearValue));
-		return *this;
-	}
+	DepthStencilAspectBit m_aspect = DepthStencilAspectBit::NONE; ///< Relevant only for depth stencil textures.
 };
 
 /// Framebuffer initializer. If you require the default framebuffer then set m_colorAttachmentCount to 1 and don't set a
@@ -83,28 +68,23 @@ public:
 };
 
 /// GPU framebuffer.
-class Framebuffer : public GrObject
+class Framebuffer final : public GrObject
 {
-public:
+	ANKI_GR_OBJECT
+
+anki_internal:
+	UniquePtr<FramebufferImpl> m_impl;
+
 	static const GrObjectType CLASS_TYPE = GrObjectType::FRAMEBUFFER;
 
 	/// Construct.
-	Framebuffer(GrManager* manager, U64 hash = 0);
+	Framebuffer(GrManager* manager, U64 hash, GrObjectCache* cache);
 
 	/// Destroy.
 	~Framebuffer();
 
-	/// Access the implementation.
-	FramebufferImpl& getImplementation()
-	{
-		return *m_impl;
-	}
-
 	/// Create.
 	void init(const FramebufferInitInfo& init);
-
-private:
-	UniquePtr<FramebufferImpl> m_impl;
 };
 /// @}
 

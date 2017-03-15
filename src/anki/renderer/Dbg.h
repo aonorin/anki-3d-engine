@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -23,8 +23,9 @@ enum class DbgFlag : U16
 	SPATIAL_COMPONENT = 1 << 0,
 	FRUSTUM_COMPONENT = 1 << 1,
 	SECTOR_COMPONENT = 1 << 2,
-	PHYSICS = 1 << 3,
-	ALL = SPATIAL_COMPONENT | FRUSTUM_COMPONENT | SECTOR_COMPONENT | PHYSICS
+	DECAL_COMPONENT = 1 << 3,
+	PHYSICS = 1 << 4,
+	ALL = SPATIAL_COMPONENT | FRUSTUM_COMPONENT | SECTOR_COMPONENT | DECAL_COMPONENT | PHYSICS
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(DbgFlag, inline)
 

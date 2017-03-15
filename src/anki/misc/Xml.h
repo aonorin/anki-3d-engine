@@ -1,10 +1,11 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
+#include <anki/misc/Common.h>
 #include <anki/util/String.h>
 #include <anki/util/DynamicArray.h>
 #include <anki/Math.h>
@@ -64,6 +65,15 @@ public:
 
 	/// Return the text inside as a float
 	ANKI_USE_RESULT Error getF64(F64& out) const;
+
+	/// Return the text inside as a float
+	ANKI_USE_RESULT Error getF32(F32& out) const
+	{
+		F64 outd;
+		ANKI_CHECK(getF64(outd));
+		out = outd;
+		return ErrorCode::NONE;
+	}
 
 	/// Get a number of floats
 	ANKI_USE_RESULT Error getFloats(DynamicArrayAuto<F64>& out) const;

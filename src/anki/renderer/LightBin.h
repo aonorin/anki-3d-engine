@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,6 +15,7 @@ class MoveComponent;
 class LightBinContext;
 class SpatialComponent;
 class LightComponent;
+class VisibilityTestResults;
 
 /// @addtogroup renderer
 /// @{
@@ -30,19 +31,26 @@ public:
 		U clusterCountY,
 		U clusterCountZ,
 		ThreadPool* threadPool,
-		GrManager* gr);
+		StagingGpuMemoryManager* stagingMem);
 
 	~LightBin();
 
-	ANKI_USE_RESULT Error bin(FrustumComponent& frc,
+	ANKI_USE_RESULT Error bin(const Mat4& viewMat,
+		const Mat4& projMat,
+		const Mat4& viewProjMat,
+		const Mat4& camTrf,
+		const VisibilityTestResults& vi,
 		StackAllocator<U8> frameAlloc,
 		U maxLightIndices,
 		Bool shadowsEnabled,
-		TransientMemoryToken& pointLightsToken,
-		TransientMemoryToken& spotLightsToken,
-		TransientMemoryToken* probesToken,
-		TransientMemoryToken& clustersToken,
-		TransientMemoryToken& lightIndicesToken);
+		StagingGpuMemoryToken& pointLightsToken,
+		StagingGpuMemoryToken& spotLightsToken,
+		StagingGpuMemoryToken* probesToken,
+		StagingGpuMemoryToken& decalsToken,
+		StagingGpuMemoryToken& clustersToken,
+		StagingGpuMemoryToken& lightIndicesToken,
+		TexturePtr& diffuseDecalTexAtlas,
+		TexturePtr& normalRoughnessDecalTexAtlas);
 
 	const Clusterer& getClusterer() const
 	{
@@ -54,25 +62,28 @@ private:
 	Clusterer m_clusterer;
 	U32 m_clusterCount = 0;
 	ThreadPool* m_threadPool = nullptr;
-	GrManager* m_gr = nullptr;
+	StagingGpuMemoryManager* m_stagingMem = nullptr;
 	Barrier m_barrier;
 
 	void binLights(U32 threadId, PtrSize threadsCount, LightBinContext& ctx);
 
-	I writePointLight(
-		const LightComponent& light, const MoveComponent& move, const FrustumComponent& camfrc, LightBinContext& ctx);
+	I writePointLight(const LightComponent& light, const MoveComponent& move, LightBinContext& ctx);
 
 	I writeSpotLight(const LightComponent& lightc,
 		const MoveComponent& lightMove,
 		const FrustumComponent* lightFrc,
-		const MoveComponent& camMove,
-		const FrustumComponent& camFrc,
 		LightBinContext& ctx);
 
-	void binLight(SpatialComponent& sp, U pos, U lightType, LightBinContext& ctx, ClustererTestResult& testResult);
+	void binLight(const SpatialComponent& sp,
+		const LightComponent& lightc,
+		U pos,
+		U lightType,
+		LightBinContext& ctx,
+		ClustererTestResult& testResult) const;
 
-	void writeAndBinProbe(
-		const FrustumComponent& camFrc, const SceneNode& node, LightBinContext& ctx, ClustererTestResult& testResult);
+	void writeAndBinProbe(const SceneNode& node, LightBinContext& ctx, ClustererTestResult& testResult);
+
+	void writeAndBinDecal(const SceneNode& node, LightBinContext& ctx, ClustererTestResult& testResult);
 };
 /// @}
 

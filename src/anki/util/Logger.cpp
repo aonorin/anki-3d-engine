@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -32,11 +32,12 @@ void Logger::addMessageHandler(void* data, MessageHandlerCallback callback)
 	m_handlers[m_handlersCount++] = Handler(data, callback);
 }
 
-void Logger::write(const char* file, int line, const char* func, MessageType type, const char* msg)
+void Logger::write(
+	const char* file, int line, const char* func, const char* subsystem, MessageType type, const char* msg)
 {
 	m_mutex.lock();
 
-	Info inf = {file, line, func, type, msg};
+	Info inf = {file, line, func, type, msg, subsystem};
 
 	U count = m_handlersCount;
 	while(count-- != 0)
@@ -52,15 +53,40 @@ void Logger::write(const char* file, int line, const char* func, MessageType typ
 	}
 }
 
-void Logger::writeFormated(const char* file, int line, const char* func, MessageType type, const char* fmt, ...)
+void Logger::writeFormated(
+	const char* file, int line, const char* func, const char* subsystem, MessageType type, const char* fmt, ...)
 {
-	char buffer[1024 * 40];
+	char buffer[1024 * 10];
 	va_list args;
 
 	va_start(args, fmt);
-	vsnprintf(buffer, sizeof(buffer), fmt, args);
-	write(file, line, func, type, buffer);
-	va_end(args);
+	I len = vsnprintf(buffer, sizeof(buffer), fmt, args);
+	if(len < 0)
+	{
+		fprintf(stderr, "Logger::writeFormated() failed. Will not recover");
+		abort();
+	}
+	else if(len < I(sizeof(buffer)))
+	{
+		write(file, line, func, subsystem, type, buffer);
+		va_end(args);
+	}
+	else
+	{
+		// Not enough space.
+
+		va_end(args);
+		va_start(args, fmt);
+
+		const PtrSize newSize = len + 1;
+		char* newBuffer = static_cast<char*>(malloc(newSize));
+		len = vsnprintf(newBuffer, newSize, fmt, args);
+
+		write(file, line, func, subsystem, type, newBuffer);
+
+		free(newBuffer);
+		va_end(args);
+	}
 }
 
 void Logger::defaultSystemMessageHandler(void*, const Info& info)
@@ -68,33 +94,44 @@ void Logger::defaultSystemMessageHandler(void*, const Info& info)
 #if ANKI_OS == ANKI_OS_LINUX
 	FILE* out = nullptr;
 	const char* terminalColor = nullptr;
+	const char* terminalColorBg = nullptr;
+
+#define ANKI_END_TERMINAL_FMT "\033[0m"
 
 	switch(info.m_type)
 	{
 	case Logger::MessageType::NORMAL:
 		out = stdout;
 		terminalColor = "\033[0;32m";
+		terminalColorBg = "\033[1;42;37m";
 		break;
 	case Logger::MessageType::ERROR:
 		out = stderr;
 		terminalColor = "\033[0;31m";
+		terminalColorBg = "\033[1;41;37m";
 		break;
 	case Logger::MessageType::WARNING:
 		out = stderr;
-		terminalColor = "\033[0;33m";
+		terminalColor = "\033[2;33m";
+		terminalColorBg = "\033[1;43;37m";
 		break;
 	case Logger::MessageType::FATAL:
 		out = stderr;
 		terminalColor = "\033[0;31m";
+		terminalColorBg = "\033[1;41;37m";
 		break;
 	default:
 		ANKI_ASSERT(0);
 	}
 
+	const char* fmt = "%s[%s][%s]" ANKI_END_TERMINAL_FMT "%s %s (%s:%d %s)" ANKI_END_TERMINAL_FMT "\n";
+
 	fprintf(out,
-		"%s[%s] %s (%s:%d %s)\033[0m\n",
-		terminalColor,
+		fmt,
+		terminalColorBg,
 		MSG_TEXT[static_cast<U>(info.m_type)],
+		info.m_subsystem ? info.m_subsystem : "N/A ",
+		terminalColor,
 		info.m_msg,
 		info.m_file,
 		info.m_line,
@@ -145,8 +182,9 @@ void Logger::defaultSystemMessageHandler(void*, const Info& info)
 	}
 
 	fprintf(out,
-		"[%s] %s (%s:%d %s)\n",
+		"[%s][%s] %s (%s:%d %s)\n",
 		MSG_TEXT[static_cast<U>(info.m_type)],
+		info.m_subsystem ? info.m_subsystem : "N/A ",
 		info.m_msg,
 		info.m_file,
 		info.m_line,

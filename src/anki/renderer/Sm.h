@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -25,16 +25,18 @@ class Sm : public RenderingPass
 anki_internal:
 	static const PixelFormat DEPTH_RT_PIXEL_FORMAT;
 
+	/// Enable Poisson for all the levels
+	Bool8 m_poissonEnabled = false;
+
+	TexturePtr m_spotTexArray;
+	TexturePtr m_omniTexArray;
+
 	Sm(Renderer* r)
 		: RenderingPass(r)
 	{
 	}
 
-	~Sm()
-	{
-		m_spots.destroy(getAllocator());
-		m_omnis.destroy(getAllocator());
-	}
+	~Sm();
 
 	ANKI_USE_RESULT Error init(const ConfigSet& initializer);
 
@@ -48,25 +50,7 @@ anki_internal:
 
 	void setPostRunBarriers(RenderingContext& ctx);
 
-	Bool getPoissonEnabled() const
-	{
-		return m_poissonEnabled;
-	}
-
-	TexturePtr getSpotTextureArray() const
-	{
-		return m_spotTexArray;
-	}
-
-	TexturePtr getOmniTextureArray() const
-	{
-		return m_omniTexArray;
-	}
-
 private:
-	TexturePtr m_spotTexArray;
-	TexturePtr m_omniTexArray;
-
 	class ShadowmapBase
 	{
 	public:
@@ -90,14 +74,13 @@ private:
 	DynamicArray<ShadowmapSpot> m_spots;
 	DynamicArray<ShadowmapOmni> m_omnis;
 
-	/// Enable Poisson for all the levels
-	Bool8 m_poissonEnabled = false;
-
 	/// Shadowmap bilinear filtering for the first level. Better quality
 	Bool8 m_bilinearEnabled;
 
 	/// Shadowmap resolution
 	U32 m_resolution;
+
+	ANKI_USE_RESULT Error initInternal(const ConfigSet& initializer);
 
 	/// Find the best shadowmap for that light
 	template<typename TShadowmap, typename TContainer>

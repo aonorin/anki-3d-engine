@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -11,8 +11,8 @@
 namespace anki
 {
 
-Texture::Texture(GrManager* manager, U64 hash)
-	: GrObject(manager, CLASS_TYPE, hash)
+Texture::Texture(GrManager* manager, U64 hash, GrObjectCache* cache)
+	: GrObject(manager, CLASS_TYPE, hash, cache)
 {
 }
 
@@ -34,7 +34,7 @@ public:
 
 	Error operator()(GlState&)
 	{
-		TextureImpl& impl = m_tex->getImplementation();
+		TextureImpl& impl = *m_tex->m_impl;
 
 		impl.init(m_init);
 
@@ -57,7 +57,7 @@ void Texture::init(const TextureInitInfo& init)
 
 	CommandBufferPtr cmdb = getManager().newInstance<CommandBuffer>(CommandBufferInitInfo());
 
-	cmdb->getImplementation().pushBackNewCommand<CreateTextureCommand>(this, init);
+	cmdb->m_impl->pushBackNewCommand<CreateTextureCommand>(this, init);
 	cmdb->flush();
 }
 

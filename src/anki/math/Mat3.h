@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -195,6 +195,10 @@ TMat3<T> operator/(T f, const TMat3<T>& m3)
 /// F32 3x3 matrix
 using Mat3 = TMat3<F32>;
 static_assert(sizeof(Mat3) == sizeof(F32) * 3 * 3, "Incorrect size");
+
+/// F64 3x3 matrix
+using DMat3 = TMat3<F64>;
+static_assert(sizeof(DMat3) == sizeof(F64) * 3 * 3, "Incorrect size");
 /// @}
 
 } // end namespace anki

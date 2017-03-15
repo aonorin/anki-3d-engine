@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -42,9 +42,14 @@ layout(location = 1) out mediump vec3 out_normal;
 
 #if PASS == COLOR
 layout(location = 2) out mediump vec4 out_tangent;
-layout(location = 3) out mediump vec3 out_vertPosViewSpace;
-layout(location = 4) out mediump vec3 out_eyeTangentSpace; // Parallax
-layout(location = 5) out mediump vec3 out_normalTangentSpace; // Parallax
+#if CALC_BITANGENT_IN_VERT
+layout(location = 3) out mediump vec3 out_bitangent;
+#endif
+
+layout(location = 4) out mediump vec3 out_vertPosViewSpace;
+layout(location = 5) out mediump vec3 out_eyeTangentSpace; // Parallax
+layout(location = 6) out mediump vec3 out_normalTangentSpace; // Parallax
+
 #endif
 
 #define writePositionAndUv_DEFINED
@@ -80,6 +85,11 @@ void writeNormalAndTangent(in mat3 normalMat)
 	out_normal = in_normal.xyz;
 #if PASS == COLOR
 	out_tangent = in_tangent;
+
+#if CALC_BITANGENT_IN_VERT
+#error TODO
+#endif
+
 #endif
 
 #else
@@ -88,8 +98,14 @@ void writeNormalAndTangent(in mat3 normalMat)
 	out_normal = normalMat * in_normal.xyz;
 	out_tangent.xyz = normalMat * in_tangent.xyz;
 	out_tangent.w = in_tangent.w;
+
+#if CALC_BITANGENT_IN_VERT
+	out_bitangent = cross(out_normal, out_tangent.xyz) * in_tangent.w;
 #endif
 
+#endif
+
+// #if TESSELLATION
 #endif
 }
 #endif

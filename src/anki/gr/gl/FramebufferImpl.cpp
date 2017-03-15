@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -39,7 +39,7 @@ Error FramebufferImpl::init(const FramebufferInitInfo& init)
 		const FramebufferAttachmentInfo& att = m_in.m_colorAttachments[i];
 		const GLenum binding = GL_COLOR_ATTACHMENT0 + i;
 
-		attachTextureInternal(binding, att.m_texture->getImplementation(), att);
+		attachTextureInternal(binding, *att.m_texture->m_impl, att);
 
 		m_drawBuffers[i] = binding;
 
@@ -53,9 +53,45 @@ Error FramebufferImpl::init(const FramebufferInitInfo& init)
 	if(m_in.m_depthStencilAttachment.m_texture.isCreated())
 	{
 		const FramebufferAttachmentInfo& att = m_in.m_depthStencilAttachment;
-		const GLenum binding = GL_DEPTH_ATTACHMENT;
+		const TextureImpl& tex = *att.m_texture->m_impl;
 
-		attachTextureInternal(binding, att.m_texture->getImplementation(), att);
+		GLenum binding;
+		if(tex.m_format == GL_DEPTH_COMPONENT)
+		{
+			binding = GL_DEPTH_ATTACHMENT;
+			m_dsAspect = DepthStencilAspectBit::DEPTH;
+		}
+		else if(tex.m_format == GL_STENCIL_INDEX)
+		{
+			binding = GL_STENCIL_ATTACHMENT;
+			m_dsAspect = DepthStencilAspectBit::STENCIL;
+		}
+		else
+		{
+			ANKI_ASSERT(tex.m_format == GL_DEPTH_STENCIL);
+
+			if(att.m_aspect == DepthStencilAspectBit::DEPTH)
+			{
+				binding = GL_DEPTH_ATTACHMENT;
+			}
+			else if(att.m_aspect == DepthStencilAspectBit::STENCIL)
+			{
+				binding = GL_STENCIL_ATTACHMENT;
+			}
+			else if(att.m_aspect == DepthStencilAspectBit::DEPTH_STENCIL)
+			{
+				binding = GL_DEPTH_STENCIL_ATTACHMENT;
+			}
+			else
+			{
+				ANKI_ASSERT(!"Need to set FramebufferAttachmentInfo::m_aspect");
+				binding = 0;
+			}
+
+			m_dsAspect = att.m_aspect;
+		}
+
+		attachTextureInternal(binding, tex, att);
 
 		if(att.m_loadOperation == AttachmentLoadOperation::DONT_CARE)
 		{
@@ -67,7 +103,7 @@ Error FramebufferImpl::init(const FramebufferInitInfo& init)
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if(status != GL_FRAMEBUFFER_COMPLETE)
 	{
-		ANKI_LOGE("FBO is incomplete: 0x%x", status);
+		ANKI_GL_LOGE("FBO is incomplete. Status: 0x%x", status);
 		return ErrorCode::FUNCTION_FAILED;
 	}
 
@@ -78,7 +114,7 @@ Error FramebufferImpl::init(const FramebufferInitInfo& init)
 void FramebufferImpl::attachTextureInternal(
 	GLenum attachment, const TextureImpl& tex, const FramebufferAttachmentInfo& info)
 {
-	tex.checkSurface(info.m_surface);
+	tex.checkSurfaceOrVolume(info.m_surface);
 
 	const GLenum target = GL_FRAMEBUFFER;
 	switch(tex.m_target)
@@ -159,8 +195,7 @@ void FramebufferImpl::bind(const GlState& state)
 
 			if(att.m_loadOperation == AttachmentLoadOperation::CLEAR)
 			{
-				// Enable write mask in case a pipeline changed it (else no
-				// clear will happen) and then restore state
+				// Enable write mask in case a pipeline changed it (else no clear will happen) and then restore state
 				Bool restore = false;
 				if(state.m_colorWriteMasks[i][0] != true || state.m_colorWriteMasks[i][1] != true
 					|| state.m_colorWriteMasks[i][2] != true
@@ -183,11 +218,11 @@ void FramebufferImpl::bind(const GlState& state)
 			}
 		}
 
-		if(m_in.m_depthStencilAttachment.m_texture.isCreated()
+		// Clear depth
+		if(!!(m_dsAspect & DepthStencilAspectBit::DEPTH) && m_in.m_depthStencilAttachment.m_texture.isCreated()
 			&& m_in.m_depthStencilAttachment.m_loadOperation == AttachmentLoadOperation::CLEAR)
 		{
-			// Enable write mask in case a pipeline changed it (else no
-			// clear will happen) and then restore state
+			// Enable write mask in case a pipeline changed it (else no clear will happen) and then restore state
 			if(state.m_depthWriteMask == false)
 			{
 				glDepthMask(true);
@@ -198,6 +233,27 @@ void FramebufferImpl::bind(const GlState& state)
 			if(state.m_depthWriteMask == false)
 			{
 				glDepthMask(false);
+			}
+		}
+
+		// Clear stencil
+		if(!!(m_dsAspect & DepthStencilAspectBit::STENCIL) && m_in.m_depthStencilAttachment.m_texture.isCreated()
+			&& m_in.m_depthStencilAttachment.m_stencilLoadOperation == AttachmentLoadOperation::CLEAR)
+		{
+			// Enable write mask in case a pipeline changed it (else no clear will happen) and then restore state
+			// From the spec: The clear operation always uses the front stencil write mask when clearing the stencil
+			// buffer
+			if(state.m_stencilWriteMask[0] != MAX_U32)
+			{
+				glStencilMaskSeparate(GL_FRONT, MAX_U32);
+			}
+
+			GLint clearVal = m_in.m_depthStencilAttachment.m_clearValue.m_depthStencil.m_stencil;
+			glClearBufferiv(GL_STENCIL, 0, &clearVal);
+
+			if(state.m_stencilWriteMask[0] != MAX_U32)
+			{
+				glStencilMaskSeparate(GL_FRONT, state.m_stencilWriteMask[0]);
 			}
 		}
 	}

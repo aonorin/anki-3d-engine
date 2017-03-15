@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -14,34 +14,30 @@ namespace anki
 /// @{
 
 /// GPU buffer.
-class Buffer : public GrObject
+class Buffer final : public GrObject
 {
+	ANKI_GR_OBJECT
+
 public:
-	static const GrObjectType CLASS_TYPE = GrObjectType::BUFFER;
-
-	/// Construct.
-	Buffer(GrManager* manager, U64 hash = 0);
-
-	/// Destroy.
-	~Buffer();
-
-	/// Access the implementation.
-	BufferImpl& getImplementation()
-	{
-		return *m_impl;
-	}
-
-	/// Allocate the buffer.
-	void init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit access);
-
 	/// Map the buffer.
 	void* map(PtrSize offset, PtrSize range, BufferMapAccessBit access);
 
 	/// Unmap the buffer.
 	void unmap();
 
-private:
+anki_internal:
+	static const GrObjectType CLASS_TYPE = GrObjectType::BUFFER;
+
 	UniquePtr<BufferImpl> m_impl;
+
+	/// Construct.
+	Buffer(GrManager* manager, U64 hash, GrObjectCache* cache);
+
+	/// Destroy.
+	~Buffer();
+
+	/// Allocate the buffer.
+	void init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit access);
 };
 /// @}
 

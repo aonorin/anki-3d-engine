@@ -1,10 +1,11 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
 
 #pragma once
 
+#include <anki/core/Common.h>
 #include <anki/util/StdTypes.h>
 #include <anki/util/Singleton.h>
 #include <anki/util/Array.h>
@@ -59,12 +60,9 @@ enum class TraceEventType
 enum class TraceCounterType
 {
 	GR_DRAWCALLS,
-	GR_DYNAMIC_UNIFORMS_SIZE,
-	GR_DYNAMIC_STORAGE_SIZE,
 	GR_VERTICES,
-	GR_PIPELINES_CREATED,
-	GR_PIPELINE_BINDS_SKIPPED,
-	GR_PIPELINE_BINDS_HAPPENED,
+	GL_PROGS_SKIPPED,
+	VK_PIPELINES_CREATED,
 	VK_PIPELINE_BARRIERS,
 	VK_CMD_BUFFER_CREATE,
 	VK_FENCE_CREATE,
@@ -75,6 +73,8 @@ enum class TraceCounterType
 	RENDERER_REFLECTIONS,
 	RESOURCE_ASYNC_TASKS,
 	SCENE_NODES_UPDATED,
+	STAGING_UNIFORMS_SIZE,
+	STAGING_STORAGE_SIZE,
 
 	COUNT
 };

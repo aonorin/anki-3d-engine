@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -39,15 +39,17 @@ enum class FillMode : U8
 {
 	POINTS,
 	WIREFRAME,
-	SOLID
+	SOLID,
+	COUNT
 };
 
-enum class CullMode : U8
+enum class FaceSelectionBit : U8
 {
-	FRONT,
-	BACK,
-	FRONT_AND_BACK
+	FRONT = 1 << 0,
+	BACK = 1 << 1,
+	FRONT_AND_BACK = FRONT | BACK
 };
+ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(FaceSelectionBit, inline)
 
 enum class CompareOperation : U8
 {
@@ -58,10 +60,24 @@ enum class CompareOperation : U8
 	GREATER,
 	GREATER_EQUAL,
 	NOT_EQUAL,
-	NEVER
+	NEVER,
+	COUNT
 };
 
-enum class BlendMethod : U8
+enum class StencilOperation : U8
+{
+	KEEP,
+	ZERO,
+	REPLACE,
+	INCREMENT_AND_CLAMP,
+	DECREMENT_AND_CLAMP,
+	INVERT,
+	INCREMENT_AND_WRAP,
+	DECREMENT_AND_WRAP,
+	COUNT
+};
+
+enum class BlendFactor : U8
 {
 	ZERO,
 	ONE,
@@ -81,16 +97,18 @@ enum class BlendMethod : U8
 	SRC1_COLOR,
 	ONE_MINUS_SRC1_COLOR,
 	SRC1_ALPHA,
-	ONE_MINUS_SRC1_ALPHA
+	ONE_MINUS_SRC1_ALPHA,
+	COUNT
 };
 
-enum class BlendFunction : U8
+enum class BlendOperation : U8
 {
 	ADD,
 	SUBTRACT,
 	REVERSE_SUBTRACT,
 	MIN,
-	MAX
+	MAX,
+	COUNT
 };
 
 enum class VertexStepRate : U8
@@ -128,14 +146,18 @@ enum class ComponentFormat : U8
 	R8G8B8A8_S3TC, ///< DXT5
 	R8G8B8A8_ETC2,
 
-	// Depth
+	// Depth & stencil
 	D16,
-	D24,
+	D24S8,
 	D32,
+	D32S8,
+	S8,
 
-	// Limits
+	// Helpers
 	FIRST_COMPRESSED = R8G8B8_S3TC,
-	LAST_COMPRESSED = R8G8B8A8_ETC2
+	LAST_COMPRESSED = R8G8B8A8_ETC2,
+	FIRST_DEPTH_STENCIL = D16,
+	LAST_DEPTH_STENCIL = S8
 };
 
 enum class TransformFormat : U8
@@ -192,10 +214,15 @@ enum class TextureUsageBit : U16
 	FRAMEBUFFER_ATTACHMENT_READ_WRITE = FRAMEBUFFER_ATTACHMENT_READ | FRAMEBUFFER_ATTACHMENT_WRITE,
 	/// @}
 
+	/// @name Transfer
+	/// @{
+	TRANSFER_DESTINATION = 1 << 10,
+	TRANSFER_ANY = TRANSFER_DESTINATION,
+	/// @}
+
 	/// @name Misc
 	/// @{
-	GENERATE_MIPMAPS = 1 << 10,
-	UPLOAD = 1 << 11,
+	GENERATE_MIPMAPS = 1 << 11,
 	CLEAR = 1 << 12 ///< Will be used in CommandBuffer::clearImage.
 	/// @}
 };
@@ -218,6 +245,7 @@ enum class ShaderType : U8
 	COMPUTE,
 
 	COUNT,
+	FIRST = VERTEX,
 	FIRST_GRAPHICS = VERTEX,
 	LAST_GRAPHICS = FRAGMENT,
 };
@@ -320,7 +348,7 @@ enum class AttachmentStoreOperation : U8
 };
 
 /// Buffer usage modes.
-enum class BufferUsageBit : U32
+enum class BufferUsageBit : U64
 {
 	NONE = 0,
 
@@ -364,15 +392,26 @@ enum class BufferUsageBit : U32
 		| STORAGE_FRAGMENT_WRITE,
 	STORAGE_ALL = STORAGE_ALL_GRAPHICS | STORAGE_COMPUTE_READ_WRITE,
 
-	INDEX = 1 << 18,
-	VERTEX = 1 << 19,
-	INDIRECT = 1 << 20,
+	TEXTURE_VERTEX_READ = 1 << 18,
+	TEXTURE_TESSELLATION_EVALUATION_READ = 1 << 19,
+	TEXTURE_TESSELLATION_CONTROL_READ = 1 << 20,
+	TEXTURE_GEOMETRY_READ = 1 << 21,
+	TEXTURE_FRAGMENT_READ = 1 << 22,
+	TEXTURE_COMPUTE_READ = 1 << 23,
+	TEXTURE_ALL = TEXTURE_VERTEX_READ | TEXTURE_TESSELLATION_EVALUATION_READ | TEXTURE_TESSELLATION_CONTROL_READ
+		| TEXTURE_GEOMETRY_READ
+		| TEXTURE_FRAGMENT_READ
+		| TEXTURE_COMPUTE_READ,
 
-	FILL = 1 << 21,
-	BUFFER_UPLOAD_SOURCE = 1 << 22,
-	BUFFER_UPLOAD_DESTINATION = 1 << 23, ///< Destination of buffer upload.
-	TEXTURE_UPLOAD_SOURCE = 1 << 24, ///< Source for texture upload.
-	QUERY_RESULT = 1 << 24, ///< Source to store query results.
+	INDEX = 1 << 24,
+	VERTEX = 1 << 25,
+	INDIRECT = 1 << 26,
+
+	FILL = 1 << 27,
+	BUFFER_UPLOAD_SOURCE = 1 << 28,
+	BUFFER_UPLOAD_DESTINATION = 1 << 29, ///< Destination of buffer upload.
+	TEXTURE_UPLOAD_SOURCE = 1 << 30, ///< Source for texture upload.
+	QUERY_RESULT = 1u << 31u, ///< Source to store query results.
 	TRANSFER_ALL = FILL | BUFFER_UPLOAD_SOURCE | BUFFER_UPLOAD_DESTINATION | TEXTURE_UPLOAD_SOURCE | QUERY_RESULT,
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(BufferUsageBit, inline)
@@ -385,6 +424,23 @@ enum class BufferMapAccessBit : U8
 	WRITE = 1 << 1
 };
 ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(BufferMapAccessBit, inline)
+
+/// A way to distinguish the aspect of a depth stencil texture.
+enum class DepthStencilAspectBit : U8
+{
+	NONE = 0,
+	DEPTH = 1 << 0,
+	STENCIL = 1 << 1,
+	DEPTH_STENCIL = DEPTH | STENCIL
+};
+ANKI_ENUM_ALLOW_NUMERIC_OPERATIONS(DepthStencilAspectBit, inline)
+
+/// Index buffer's index type.
+enum class IndexType : U8
+{
+	U16,
+	U32
+};
 /// @}
 
 } // end namespace anki

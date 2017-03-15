@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -58,30 +58,25 @@ void writeShaderBlockMemory(ShaderVariableDataType type,
 	const void* buffEnd);
 
 /// GPU shader.
-class Shader : public GrObject
+class Shader final : public GrObject
 {
-public:
+	ANKI_GR_OBJECT
+
+anki_internal:
+	UniquePtr<ShaderImpl> m_impl;
+
 	static const GrObjectType CLASS_TYPE = GrObjectType::SHADER;
 
 	/// Construct.
-	Shader(GrManager* manager, U64 hash = 0);
+	Shader(GrManager* manager, U64 hash, GrObjectCache* cache);
 
 	/// Destroy.
 	~Shader();
-
-	/// Access the implementation.
-	ShaderImpl& getImplementation()
-	{
-		return *m_impl;
-	}
 
 	/// Create shader.
 	/// @param shaderType The type of the shader.
 	/// @param source The GLSL code of the shader.
 	void init(ShaderType shaderType, const CString& source);
-
-private:
-	UniquePtr<ShaderImpl> m_impl;
 };
 /// @}
 

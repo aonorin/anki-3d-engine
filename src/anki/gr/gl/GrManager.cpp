@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -6,8 +6,8 @@
 #include <anki/gr/GrManager.h>
 #include <anki/gr/gl/GrManagerImpl.h>
 #include <anki/gr/gl/RenderingThread.h>
-#include <anki/gr/gl/TransientMemoryManager.h>
 #include <anki/gr/gl/TextureImpl.h>
+#include <anki/gr/gl/GlState.h>
 #include <anki/core/Timestamp.h>
 #include <cstring>
 
@@ -31,11 +31,6 @@ Error GrManager::init(GrManagerInitInfo& init)
 
 	m_cacheDir.create(m_alloc, init.m_cacheDirectory);
 
-	for(auto& c : m_caches)
-	{
-		c.init(m_alloc);
-	}
-
 	m_impl.reset(m_alloc.newInstance<GrManagerImpl>(this));
 	ANKI_CHECK(m_impl->init(init));
 
@@ -57,29 +52,10 @@ void GrManager::finish()
 	m_impl->getRenderingThread().syncClientServer();
 }
 
-void* GrManager::allocateFrameTransientMemory(PtrSize size, BufferUsageBit usage, TransientMemoryToken& token)
-{
-	void* data = nullptr;
-	m_impl->getTransientMemoryManager().allocate(
-		size, usage, TransientMemoryTokenLifetime::PER_FRAME, token, data, nullptr);
-
-	return data;
-}
-
-void* GrManager::tryAllocateFrameTransientMemory(PtrSize size, BufferUsageBit usage, TransientMemoryToken& token)
-{
-	void* data = nullptr;
-	Error err = ErrorCode::NONE;
-	m_impl->getTransientMemoryManager().allocate(
-		size, usage, TransientMemoryTokenLifetime::PER_FRAME, token, data, &err);
-
-	return (!err) ? data : nullptr;
-}
-
 void GrManager::getTextureSurfaceUploadInfo(TexturePtr tex, const TextureSurfaceInfo& surf, PtrSize& allocationSize)
 {
-	const TextureImpl& impl = tex->getImplementation();
-	impl.checkSurface(surf);
+	const TextureImpl& impl = *tex->m_impl;
+	impl.checkSurfaceOrVolume(surf);
 
 	U width = impl.m_width >> surf.m_level;
 	U height = impl.m_height >> surf.m_level;
@@ -88,13 +64,37 @@ void GrManager::getTextureSurfaceUploadInfo(TexturePtr tex, const TextureSurface
 
 void GrManager::getTextureVolumeUploadInfo(TexturePtr tex, const TextureVolumeInfo& vol, PtrSize& allocationSize)
 {
-	const TextureImpl& impl = tex->getImplementation();
-	impl.checkVolume(vol);
+	const TextureImpl& impl = *tex->m_impl;
+	impl.checkSurfaceOrVolume(vol);
 
 	U width = impl.m_width >> vol.m_level;
 	U height = impl.m_height >> vol.m_level;
 	U depth = impl.m_depth >> vol.m_level;
 	allocationSize = computeVolumeSize(width, height, depth, impl.m_pformat);
+}
+
+void GrManager::getUniformBufferInfo(U32& bindOffsetAlignment, PtrSize& maxUniformBlockSize) const
+{
+	bindOffsetAlignment = m_impl->getState().m_uboAlignment;
+	maxUniformBlockSize = m_impl->getState().m_uniBlockMaxSize;
+
+	ANKI_ASSERT(bindOffsetAlignment > 0 && maxUniformBlockSize > 0);
+}
+
+void GrManager::getStorageBufferInfo(U32& bindOffsetAlignment, PtrSize& maxStorageBlockSize) const
+{
+	bindOffsetAlignment = m_impl->getState().m_ssboAlignment;
+	maxStorageBlockSize = m_impl->getState().m_storageBlockMaxSize;
+
+	ANKI_ASSERT(bindOffsetAlignment > 0 && maxStorageBlockSize > 0);
+}
+
+void GrManager::getTextureBufferInfo(U32& bindOffsetAlignment, PtrSize& maxRange) const
+{
+	bindOffsetAlignment = m_impl->getState().m_tboAlignment;
+	maxRange = m_impl->getState().m_tboMaxRange;
+
+	ANKI_ASSERT(bindOffsetAlignment > 0 && maxRange > 0);
 }
 
 } // end namespace anki

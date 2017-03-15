@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -45,7 +45,7 @@ void glConditionalCheckError(const char* file, int line, const char* func)
 	memcpy(errStr, tmp, sizeof(tmp));
 	strcat(errStr, glerr);
 
-	ANKI_LOGF("GL error: %s (%s:%d %s)", errStr, file, line, func);
+	ANKI_GL_LOGF("GL error: %s (%s:%d %s)", errStr, file, line, func);
 }
 
 } // end namespace

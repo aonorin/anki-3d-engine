@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -22,12 +22,11 @@
 #include <anki/script/ScriptManager.h>
 #include <anki/resource/ResourceFilesystem.h>
 #include <anki/resource/AsyncLoader.h>
+#include <anki/core/StagingGpuMemoryManager.h>
 
 #if ANKI_OS == ANKI_OS_ANDROID
 #include <android_native_app_glue.h>
 #endif
-
-// Sybsystems
 
 namespace anki
 {
@@ -84,6 +83,12 @@ void App::cleanup()
 		m_physics = nullptr;
 	}
 
+	if(m_stagingMem)
+	{
+		m_heapAlloc.deleteInstance(m_stagingMem);
+		m_stagingMem = nullptr;
+	}
+
 	if(m_gr)
 	{
 		m_heapAlloc.deleteInstance(m_gr);
@@ -128,7 +133,7 @@ Error App::init(const ConfigSet& config, AllocAlignedCallback allocCb, void* all
 	if(err)
 	{
 		cleanup();
-		ANKI_LOGE("App initialization failed");
+		ANKI_CORE_LOGE("App initialization failed");
 	}
 
 	return err;
@@ -145,16 +150,27 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 
 	// Print a message
 	const char* buildType =
-#if !ANKI_DEBUG
-		"release";
+#if ANKI_OPTIMIZE
+		"optimized, "
 #else
-		"debug";
+		"NOT optimized, "
+#endif
+#if ANKI_DEBUG_SYMBOLS
+		"dbg symbols, "
+#else
+		"NO dbg symbols, "
+#endif
+#if ANKI_EXTRA_CHECKS
+		"extra checks";
+#else
+		"NO extra checks";
 #endif
 
-	ANKI_LOGI("Initializing application ("
-			  "version %u.%u, "
-			  "build %s %s, "
-			  "commit %s)...",
+	ANKI_CORE_LOGI("Initializing application ("
+				   "version %u.%u, "
+				   "%s, "
+				   "date %s, "
+				   "commit %s)...",
 		ANKI_VERSION_MAJOR,
 		ANKI_VERSION_MINOR,
 		buildType,
@@ -167,8 +183,8 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 #if ANKI_SIMD == ANKI_SIMD_SSE
 	if(!__builtin_cpu_supports("sse4.2"))
 	{
-		ANKI_LOGF("AnKi is built with sse4.2 support but your CPU doesn't "
-				  "support it. Try bulding without SSE support");
+		ANKI_CORE_LOGF("AnKi is built with sse4.2 support but your CPU doesn't "
+					   "support it. Try bulding without SSE support");
 	}
 #endif
 
@@ -217,6 +233,12 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 	ANKI_CHECK(m_gr->init(grInit));
 
 	//
+	// Staging mem
+	//
+	m_stagingMem = m_heapAlloc.newInstance<StagingGpuMemoryManager>();
+	ANKI_CHECK(m_stagingMem->init(m_gr, config));
+
+	//
 	// Physics
 	//
 	m_physics = m_heapAlloc.newInstance<PhysicsWorld>();
@@ -234,6 +256,7 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 	//
 	ResourceManagerInitInfo rinit;
 	rinit.m_gr = m_gr;
+	rinit.m_stagingMem = m_stagingMem;
 	rinit.m_physics = m_physics;
 	rinit.m_resourceFs = m_resourceFs;
 	rinit.m_config = &config;
@@ -255,8 +278,8 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 
 	m_renderer = m_heapAlloc.newInstance<MainRenderer>();
 
-	ANKI_CHECK(
-		m_renderer->create(m_threadpool, m_resources, m_gr, m_allocCb, m_allocCbData, config, &m_globalTimestamp));
+	ANKI_CHECK(m_renderer->create(
+		m_threadpool, m_resources, m_gr, m_stagingMem, m_allocCb, m_allocCbData, config, &m_globalTimestamp));
 
 	m_resources->_setShadersPrependedSource(m_renderer->getMaterialShaderSource().toCString());
 
@@ -275,7 +298,7 @@ Error App::initInternal(const ConfigSet& config_, AllocAlignedCallback allocCb, 
 
 	ANKI_CHECK(m_script->init(m_allocCb, m_allocCbData, m_scene, m_renderer));
 
-	ANKI_LOGI("Application initialized");
+	ANKI_CORE_LOGI("Application initialized");
 	return ErrorCode::NONE;
 }
 
@@ -290,7 +313,12 @@ Error App::initDirs()
 
 	if(!directoryExists(m_settingsDir.toCString()))
 	{
+		ANKI_CORE_LOGI("Creating settings dir \"%s\"", &m_settingsDir[0]);
 		ANKI_CHECK(createDirectory(m_settingsDir.toCString()));
+	}
+	else
+	{
+		ANKI_CORE_LOGI("Using settings dir \"%s\"", &m_settingsDir[0]);
 	}
 
 	// Cache
@@ -329,7 +357,7 @@ Error App::initDirs()
 
 Error App::mainLoop()
 {
-	ANKI_LOGI("Entering main loop");
+	ANKI_CORE_LOGI("Entering main loop");
 	Bool quit = false;
 
 	HighRezTimer::Scalar prevUpdateTime = HighRezTimer::getCurrentTime();
@@ -356,11 +384,11 @@ Error App::mainLoop()
 
 		ANKI_CHECK(m_renderer->render(*m_scene));
 
-		// Pause and sync async loader. That will force all tasks before the
-		// pause to finish in this frame.
+		// Pause and sync async loader. That will force all tasks before the pause to finish in this frame.
 		m_resources->getAsyncLoader().pause();
 
 		m_gr->swapBuffers();
+		m_stagingMem->endFrame();
 
 		// Update the trace info with some async loader stats
 		U64 asyncTaskCount = m_resources->getAsyncLoader().getCompletedTaskCount();

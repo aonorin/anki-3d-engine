@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,6 +18,7 @@ namespace anki
 
 // Forward
 class String;
+class StringAuto;
 
 /// @addtogroup util_private
 /// @{
@@ -191,10 +192,10 @@ public:
 	}
 
 	/// Get the string length.
-	U getLength() const
+	U32 getLength() const
 	{
 		checkInit();
-		return std::strlen(m_ptr);
+		return U32(std::strlen(m_ptr));
 	}
 
 	PtrSize find(const CString& cstr, PtrSize position = 0) const
@@ -202,7 +203,7 @@ public:
 		checkInit();
 		ANKI_ASSERT(position < getLength());
 		const Char* out = std::strstr(m_ptr, &cstr[0]);
-		return (out == nullptr) ? NPOS : (out - m_ptr);
+		return (out == nullptr) ? NPOS : PtrSize(out - m_ptr);
 	}
 
 	/// Convert to F64.
@@ -264,7 +265,12 @@ public:
 	/// Move constructor.
 	String(String&& b)
 	{
-		move(b);
+		*this = std::move(b);
+	}
+
+	String(StringAuto&& b)
+	{
+		*this = std::move(b);
 	}
 
 	/// Requires manual destruction.
@@ -299,6 +305,9 @@ public:
 		move(b);
 		return *this;
 	}
+
+	/// Move a StringAuto to this one.
+	String& operator=(StringAuto&& b);
 
 	/// Return char at the specified position.
 	const Char& operator[](U pos) const
@@ -498,6 +507,12 @@ public:
 		return toCString().toF64(out);
 	}
 
+	/// Convert to F32.
+	ANKI_USE_RESULT Error toF32(F32& out) const
+	{
+		return toCString().toF32(out);
+	}
+
 	/// Convert to I64.
 	ANKI_USE_RESULT Error toI64(I64& out) const
 	{
@@ -532,7 +547,7 @@ inline void String::toString(Allocator alloc, TNumber number)
 
 	if(ret < 0 || ret > static_cast<I>(buff.getSize()))
 	{
-		ANKI_LOGF("To small intermediate buffer");
+		ANKI_UTIL_LOGF("To small intermediate buffer");
 	}
 	else
 	{

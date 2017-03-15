@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -8,7 +8,6 @@
 #include <anki/gr/GrManager.h>
 #include <anki/gr/gl/GrManagerImpl.h>
 #include <anki/gr/gl/GlState.h>
-#include <anki/gr/gl/TransientMemoryManager.h>
 #include <anki/util/Logger.h>
 #include <anki/core/Trace.h>
 #include <cstdlib>
@@ -79,7 +78,7 @@ RenderingThread::~RenderingThread()
 
 void RenderingThread::flushCommandBuffer(CommandBufferPtr cmdb)
 {
-	cmdb->getImplementation().makeImmutable();
+	cmdb->m_impl->makeImmutable();
 
 	{
 		LockGuard<Mutex> lock(m_mtx);
@@ -96,7 +95,7 @@ void RenderingThread::flushCommandBuffer(CommandBufferPtr cmdb)
 		}
 		else
 		{
-			ANKI_LOGW("Rendering queue too small");
+			ANKI_GL_LOGW("Rendering queue too small");
 		}
 
 		m_condVar.notifyOne(); // Wake the thread
@@ -117,9 +116,9 @@ void RenderingThread::start()
 
 	// Swap buffers stuff
 	m_swapBuffersCommands = m_manager->newInstance<CommandBuffer>(CommandBufferInitInfo());
-	m_swapBuffersCommands->getImplementation().pushBackNewCommand<SwapBuffersCommand>(this);
+	m_swapBuffersCommands->m_impl->pushBackNewCommand<SwapBuffersCommand>(this);
 	// Just in case noone swaps
-	m_swapBuffersCommands->getImplementation().makeExecuted();
+	m_swapBuffersCommands->m_impl->makeExecuted();
 
 	m_manager->getImplementation().pinContextToCurrentThread(false);
 
@@ -128,10 +127,10 @@ void RenderingThread::start()
 
 	// Create sync command buffer
 	m_syncCommands = m_manager->newInstance<CommandBuffer>(CommandBufferInitInfo());
-	m_syncCommands->getImplementation().pushBackNewCommand<SyncCommand>(this);
+	m_syncCommands->m_impl->pushBackNewCommand<SyncCommand>(this);
 
 	m_emptyCmdb = m_manager->newInstance<CommandBuffer>(CommandBufferInitInfo());
-	m_emptyCmdb->getImplementation().pushBackNewCommand<EmptyCommand>();
+	m_emptyCmdb->m_impl->pushBackNewCommand<EmptyCommand>();
 }
 
 void RenderingThread::stop()
@@ -151,7 +150,7 @@ void RenderingThread::prepare()
 	// Ignore the first error
 	glGetError();
 
-	ANKI_LOGI("OpenGL async thread started: OpenGL version %s, GLSL version %s",
+	ANKI_GL_LOGI("OpenGL async thread started: OpenGL version \"%s\", GLSL version \"%s\"",
 		reinterpret_cast<const char*>(glGetString(GL_VERSION)),
 		reinterpret_cast<const char*>(glGetString(GL_SHADING_LANGUAGE_VERSION)));
 
@@ -160,9 +159,6 @@ void RenderingThread::prepare()
 
 	// Init state
 	m_manager->getImplementation().getState().initRenderThread();
-
-	// Init dyn mem
-	m_manager->getImplementation().getTransientMemoryManager().initRenderThread();
 }
 
 void RenderingThread::finish()
@@ -173,14 +169,12 @@ void RenderingThread::finish()
 		if(m_queue[i].isCreated())
 		{
 			// Fake that it's executed to avoid warnings
-			m_queue[i]->getImplementation().makeExecuted();
+			m_queue[i]->m_impl->makeExecuted();
 
 			// Release
 			m_queue[i] = CommandBufferPtr();
 		}
 	}
-
-	m_manager->getImplementation().getTransientMemoryManager().destroyRenderThread();
 
 	// Cleanup GL
 	m_manager->getImplementation().getState().destroy();
@@ -229,12 +223,12 @@ void RenderingThread::threadLoop()
 		}
 
 		ANKI_TRACE_START_EVENT(GL_THREAD);
-		Error err = cmd->getImplementation().executeAllCommands();
+		Error err = cmd->m_impl->executeAllCommands();
 		ANKI_TRACE_STOP_EVENT(GL_THREAD);
 
 		if(err)
 		{
-			ANKI_LOGE("Error in rendering thread. Aborting");
+			ANKI_GL_LOGE("Error in rendering thread. Aborting");
 			abort();
 		}
 	}
@@ -283,8 +277,6 @@ void RenderingThread::swapBuffers()
 
 		m_frameWait = true;
 	}
-
-	m_manager->getImplementation().getTransientMemoryManager().endFrame();
 
 	// ...and then flush a new swap buffers
 	flushCommandBuffer(m_swapBuffersCommands);

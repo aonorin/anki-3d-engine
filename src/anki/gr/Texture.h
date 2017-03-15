@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -37,9 +37,16 @@ static_assert(offsetof(SamplerInitInfo, m_repeat) == 12, "Class needs to be tigh
 class TextureInitInfo
 {
 public:
+	CString m_name; ///< Optional
+
 	TextureType m_type = TextureType::_2D;
-	TextureUsageBit m_usage = TextureUsageBit::NONE;
-	TextureUsageBit m_initialUsage = TextureUsageBit::NONE;
+
+	TextureUsageBit m_usage = TextureUsageBit::NONE; ///< How the texture will be used.
+	TextureUsageBit m_initialUsage = TextureUsageBit::NONE; ///< It's initial usage.
+
+	/// It's usual usage. That way you won't need to call CommandBuffer::informTextureXXXCurrentUsage() all the time.
+	TextureUsageBit m_usageWhenEncountered = TextureUsageBit::NONE;
+
 	U32 m_width = 0;
 	U32 m_height = 0;
 	U32 m_depth = 1; //< Relevant only for 3D textures.
@@ -53,28 +60,23 @@ public:
 };
 
 /// GPU texture
-class Texture : public GrObject
+class Texture final : public GrObject
 {
-public:
+	ANKI_GR_OBJECT
+
+anki_internal:
+	UniquePtr<TextureImpl> m_impl;
+
 	static const GrObjectType CLASS_TYPE = GrObjectType::TEXTURE;
 
 	/// Construct.
-	Texture(GrManager* manager, U64 hash = 0);
+	Texture(GrManager* manager, U64 hash, GrObjectCache* cache);
 
 	/// Destroy.
 	~Texture();
 
-	/// Access the implementation.
-	TextureImpl& getImplementation()
-	{
-		return *m_impl;
-	}
-
 	/// Create it.
 	void init(const TextureInitInfo& init);
-
-private:
-	UniquePtr<TextureImpl> m_impl;
 };
 /// @}
 

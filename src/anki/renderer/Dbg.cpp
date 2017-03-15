@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -10,17 +10,13 @@
 #include <anki/renderer/Pps.h>
 #include <anki/renderer/DebugDrawer.h>
 #include <anki/resource/ShaderResource.h>
-#include <anki/scene/SceneGraph.h>
-#include <anki/scene/FrustumComponent.h>
-#include <anki/scene/MoveComponent.h>
-#include <anki/scene/Sector.h>
-#include <anki/scene/Light.h>
+#include <anki/Scene.h>
 #include <anki/util/Logger.h>
 #include <anki/util/Enum.h>
 #include <anki/misc/ConfigSet.h>
 #include <anki/collision/ConvexHullShape.h>
 #include <anki/Ui.h> /// XXX
-#include <anki/scene/SoftwareRasterizer.h> /// XXX
+#include <anki/renderer/Clusterer.h> /// XXX
 
 namespace anki
 {
@@ -50,21 +46,21 @@ Error Dbg::lazyInit()
 	ANKI_ASSERT(!m_initialized);
 
 	// RT
-	m_r->createRenderTarget(m_r->getWidth(),
+	m_rt = m_r->createAndClearRenderTarget(m_r->create2DRenderTargetInitInfo(m_r->getWidth(),
 		m_r->getHeight(),
 		DBG_COLOR_ATTACHMENT_PIXEL_FORMAT,
 		TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::FRAMEBUFFER_ATTACHMENT_READ_WRITE,
 		SamplingFilter::LINEAR,
-		1,
-		m_rt);
+		1));
 
 	// Create FB
 	FramebufferInitInfo fbInit;
 	fbInit.m_colorAttachmentCount = 1;
 	fbInit.m_colorAttachments[0].m_texture = m_rt;
 	fbInit.m_colorAttachments[0].m_loadOperation = AttachmentLoadOperation::CLEAR;
-	fbInit.m_depthStencilAttachment.m_texture = m_r->getMs().getDepthRt();
+	fbInit.m_depthStencilAttachment.m_texture = m_r->getMs().m_depthRt;
 	fbInit.m_depthStencilAttachment.m_loadOperation = AttachmentLoadOperation::LOAD;
+	fbInit.m_depthStencilAttachment.m_aspect = DepthStencilAspectBit::DEPTH;
 
 	m_fb = getGrManager().newInstance<Framebuffer>(fbInit);
 
@@ -88,24 +84,28 @@ Error Dbg::run(RenderingContext& ctx)
 	cmdb->beginRenderPass(m_fb);
 	cmdb->setViewport(0, 0, m_r->getWidth(), m_r->getHeight());
 
-	FrustumComponent& camFrc = *ctx.m_frustumComponent;
-	SceneNode& cam = camFrc.getSceneNode();
 	m_drawer->prepareFrame(cmdb);
-	m_drawer->setViewProjectionMatrix(camFrc.getViewProjectionMatrix());
+	m_drawer->setViewProjectionMatrix(ctx.m_viewProjMat);
 	m_drawer->setModelMatrix(Mat4::getIdentity());
 	// m_drawer->drawGrid();
 
-	SceneGraph& scene = cam.getSceneGraph();
+	const SceneGraph* scene = nullptr;
 
 	SceneDebugDrawer sceneDrawer(m_drawer);
-	camFrc.getVisibilityTestResults().iterateAll([&](SceneNode& node) {
-		if(&node == &cam)
+	ctx.m_visResults->iterateAll([&](const SceneNode& node) {
+		// Get the scenegraph
+		if(scene == nullptr)
 		{
-			return;
+			scene = &node.getSceneGraph();
 		}
 
+		/*if(&node == &cam)
+		{
+			return;
+		}*/
+
 		// Set position
-		MoveComponent* mv = node.tryGetComponent<MoveComponent>();
+		const MoveComponent* mv = node.tryGetComponent<MoveComponent>();
 		if(mv)
 		{
 			m_drawer->setModelMatrix(Mat4(mv->getWorldTransform()));
@@ -118,7 +118,7 @@ Error Dbg::run(RenderingContext& ctx)
 		// Spatial
 		if(m_flags.get(DbgFlag::SPATIAL_COMPONENT))
 		{
-			Error err = node.iterateComponentsOfType<SpatialComponent>([&](SpatialComponent& sp) -> Error {
+			Error err = node.iterateComponentsOfType<const SpatialComponent>([&](const SpatialComponent& sp) -> Error {
 				sceneDrawer.draw(sp);
 				return ErrorCode::NONE;
 			});
@@ -129,10 +129,10 @@ Error Dbg::run(RenderingContext& ctx)
 		if(m_flags.get(DbgFlag::FRUSTUM_COMPONENT))
 		{
 			Error err = node.iterateComponentsOfType<FrustumComponent>([&](FrustumComponent& frc) -> Error {
-				if(&frc != &camFrc)
+				/*if(&frc != &camFrc)
 				{
 					sceneDrawer.draw(frc);
-				}
+				}*/
 				return ErrorCode::NONE;
 			});
 			(void)err;
@@ -152,14 +152,24 @@ Error Dbg::run(RenderingContext& ctx)
 			});
 			(void)err;
 		}
+
+		// Decal
+		if(m_flags.get(DbgFlag::DECAL_COMPONENT))
+		{
+			Error err = node.iterateComponentsOfType<DecalComponent>([&](DecalComponent& psc) -> Error {
+				sceneDrawer.draw(psc);
+				return ErrorCode::NONE;
+			});
+			(void)err;
+		}
 	});
 
-	if(m_flags.get(DbgFlag::PHYSICS))
+	if(m_flags.get(DbgFlag::PHYSICS) && scene)
 	{
 		PhysicsDebugDrawer phyd(m_drawer);
 
 		m_drawer->setModelMatrix(Mat4::getIdentity());
-		phyd.drawWorld(scene.getPhysicsWorld());
+		phyd.drawWorld(scene->getPhysicsWorld());
 	}
 
 #if 0
@@ -169,126 +179,80 @@ Error Dbg::run(RenderingContext& ctx)
 		CollisionDebugDrawer cd(m_drawer);
 		Mat4 proj = camFrc.getProjectionMatrix();
 
-		Array<Plane, 6> planes;
-		Array<Plane*, 6> pplanes = {&planes[0],
-			&planes[1],
-			&planes[2],
-			&planes[3],
-			&planes[4],
-			&planes[5]};
-		extractClipPlanes(proj, pplanes);
-
-		planes[5].accept(cd);
-
 		m_drawer->setViewProjectionMatrix(camFrc.getViewProjectionMatrix());
+
+		Sphere s(Vec4(1.2, 2.0, -1.1, 0.0), 2.1);
+
+		s.accept(cd);
+
+		Transform trf = scene.findSceneNode("light0").getComponent<MoveComponent>().getWorldTransform();
+		Vec4 rayOrigin = trf.getOrigin();
+		Vec3 rayDir = -trf.getRotation().getZAxis().getNormalized();
 		m_drawer->setModelMatrix(Mat4::getIdentity());
+		m_drawer->drawLine(rayOrigin.xyz(), rayOrigin.xyz() + rayDir.xyz() * 10.0, Vec4(1.0, 1.0, 1.0, 1.0));
 
-		m_drawer->setColor(Vec4(0.0, 1.0, 1.0, 1.0));
-		PerspectiveFrustum frc;
-		const PerspectiveFrustum& cfrc =
-			(const PerspectiveFrustum&)camFrc.getFrustum();
-		frc.setAll(
-			cfrc.getFovX(), cfrc.getFovY(), cfrc.getNear(), cfrc.getFar());
-		cd.visit(frc);
-
-		m_drawer->drawLine(Vec3(0.0), planes[5].getNormal().xyz() * 100.0, 
-			Vec4(1.0));
+		Array<Vec4, 2> intersectionPoints;
+		U intersectionPointCount;
+		s.intersectsRay(rayDir.xyz0(), rayOrigin, intersectionPoints, intersectionPointCount);
+		for(U i = 0; i < intersectionPointCount; ++i)
+		{
+			m_drawer->drawLine(Vec3(0.0), intersectionPoints[i].xyz(), Vec4(0.0, 1.0, 0.0, 1.0));
+		}
 	}
 #endif
 
 #if 0
 	{
-		m_drawer->setViewProjectionMatrix(Mat4::getIdentity());
-		m_drawer->setModelMatrix(Mat4::getIdentity());
-		Mat4 proj = camFrc.getProjectionMatrix();
-		Mat4 view = camFrc.getViewMatrix();
+		Clusterer c;
+		c.init(getAllocator(), 16, 12, 30);
 
-		Array<Vec4, 12> ltriangle = {Vec4(0.0, 2.0, 2.0, 1.0),
-			Vec4(4.0, 2.0, 2.0, 1.0),
-			Vec4(0.0, 8.0, 2.0, 1.0),
+		const FrustumComponent& frc = scene.findSceneNode("cam0").getComponent<FrustumComponent>();
+		const MoveComponent& movc = scene.findSceneNode("cam0").getComponent<MoveComponent>();
 
-			Vec4(0.0, 8.0, 2.0, 1.0),
-			Vec4(4.0, 2.0, 2.0, 1.0),
-			Vec4(4.0, 8.0, 2.0, 1.0),
+		ClustererPrepareInfo pinf;
+		pinf.m_viewMat = frc.getViewMatrix();
+		pinf.m_projMat = frc.getProjectionMatrix();
+		pinf.m_camTrf = frc.getFrustum().getTransform();
+		c.prepare(m_r->getThreadPool(), pinf);
 
-			Vec4(0.9, 2.0, 1.9, 1.0),
-			Vec4(4.9, 2.0, 1.9, 1.0),
-			Vec4(0.9, 8.0, 1.9, 1.0),
-
-			Vec4(0.9, 8.0, 1.9, 1.0),
-			Vec4(4.9, 2.0, 1.9, 1.0),
-			Vec4(4.9, 8.0, 1.9, 1.0)};
-
-		SoftwareRasterizer r;
-		r.init(getAllocator());
-		r.prepare(
-			view, proj, m_r->getTileCountXY().x(), m_r->getTileCountXY().y());
-		r.draw(&ltriangle[0][0], 12, sizeof(Vec4));
-
-		/*m_drawer->begin(PrimitiveTopology::TRIANGLES);
-		U count = 0;
-		for(U y = 0; y < m_r->getTileCountXY().y(); ++y)
+		class DD : public ClustererDebugDrawer
 		{
-			for(U x = 0; x < m_r->getTileCountXY().x(); ++x)
+		public:
+			DebugDrawer* m_d;
+
+			void operator()(const Vec3& lineA, const Vec3& lineB, const Vec3& color)
 			{
-				F32 d = r.m_zbuffer[y * m_r->getTileCountXY().x() + x].get()
-					/ F32(MAX_U32);
-
-				if(d < 1.0)
-				{
-					F32 zNear = camFrc.getFrustum().getNear();
-					F32 zFar = camFrc.getFrustum().getFar();
-					F32 ld =
-						(2.0 * zNear) / (zFar + zNear - d * (zFar - zNear));
-					m_drawer->setColor(Vec4(ld));
-
-					++count;
-					Vec2 min(F32(x) / m_r->getTileCountXY().x(),
-						F32(y) / m_r->getTileCountXY().y());
-
-					Vec2 max(F32(x + 1) / m_r->getTileCountXY().x(),
-						F32(y + 1) / m_r->getTileCountXY().y());
-
-					min = min * 2.0 - 1.0;
-					max = max * 2.0 - 1.0;
-
-					m_drawer->pushBackVertex(Vec3(min.x(), min.y(), 0.0));
-					m_drawer->pushBackVertex(Vec3(max.x(), min.y(), 0.0));
-					m_drawer->pushBackVertex(Vec3(min.x(), max.y(), 0.0));
-
-					m_drawer->pushBackVertex(Vec3(min.x(), max.y(), 0.0));
-					m_drawer->pushBackVertex(Vec3(max.x(), min.y(), 0.0));
-					m_drawer->pushBackVertex(Vec3(max.x(), max.y(), 0.0));
-				}
+				m_d->drawLine(lineA, lineB, color.xyz1());
 			}
-		}
-		m_drawer->end();*/
+		};
 
-		m_drawer->setViewProjectionMatrix(camFrc.getViewProjectionMatrix());
-		Vec3 offset(0.0, 0.0, 0.0);
-		m_drawer->setColor(Vec4(0.5));
-		m_drawer->begin(PrimitiveTopology::TRIANGLES);
-		for(U i = 0; i < ltriangle.getSize() / 3; ++i)
+		DD dd;
+		dd.m_d = m_drawer;
+
+		CollisionDebugDrawer cd(m_drawer);
+
+		Sphere s(Vec4(1.0, 0.1, -1.2, 0.0), 1.2);
+		PerspectiveFrustum fr(toRad(25.), toRad(35.), 0.1, 5.);
+		fr.transform(Transform(Vec4(0., 1., 0., 0.), Mat3x4::getIdentity(), 1.0));
+
+		m_drawer->setModelMatrix(Mat4(movc.getWorldTransform()));
+		// c.debugDraw(dd);
+
+		if(frc.getFrustum().insideFrustum(fr))
 		{
-			m_drawer->pushBackVertex(ltriangle[i * 3 + 0].xyz());
-			m_drawer->pushBackVertex(ltriangle[i * 3 + 1].xyz());
-			m_drawer->pushBackVertex(ltriangle[i * 3 + 2].xyz());
+			ClustererTestResult rez;
+			c.initTestResults(getAllocator(), rez);
+			Aabb sbox;
+			fr.computeAabb(sbox);
+			c.binPerspectiveFrustum(fr, sbox, rez);
+			//c.bin(s, sbox, rez);
+
+			c.debugDrawResult(rez, dd);
 		}
-		m_drawer->end();
 
-		SceneNode& node = scene.findSceneNode("Lamp");
-		SpatialComponent& spc = node.getComponent<SpatialComponent>();
-		Aabb nodeAabb = spc.getAabb();
-
-		Bool inside =
-			r.visibilityTest(spc.getSpatialCollisionShape(), nodeAabb);
-
-		if(inside)
-		{
-			m_drawer->setColor(Vec4(1.0, 0.0, 0.0, 1.0));
-			CollisionDebugDrawer cd(m_drawer);
-			nodeAabb.accept(cd);
-		}
+		m_drawer->setColor(Vec4(1.0, 1.0, 0.0, 1.0));
+		frc.getFrustum().accept(cd);
+		fr.accept(cd);
 	}
 #endif
 

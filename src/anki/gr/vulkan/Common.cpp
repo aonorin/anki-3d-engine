@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -197,10 +197,10 @@ static const ConvertFormat CONVERT_FORMAT_TABLE[] = {ANKI_FMT(NONE, NONE, VK_FOR
 	ANKI_FMT(D16, UNORM, VK_FORMAT_D16_UNORM, D),
 	ANKI_FMT(NONE, NONE, VK_FORMAT_X8_D24_UNORM_PACK32, DS),
 	ANKI_FMT(D32, FLOAT, VK_FORMAT_D32_SFLOAT, D),
-	ANKI_FMT(NONE, NONE, VK_FORMAT_S8_UINT, S),
+	ANKI_FMT(S8, UINT, VK_FORMAT_S8_UINT, S),
 	ANKI_FMT(NONE, NONE, VK_FORMAT_D16_UNORM_S8_UINT, DS),
-	ANKI_FMT(D24, UNORM, VK_FORMAT_D24_UNORM_S8_UINT, DS),
-	ANKI_FMT(NONE, NONE, VK_FORMAT_D32_SFLOAT_S8_UINT, C),
+	ANKI_FMT(D24S8, UNORM, VK_FORMAT_D24_UNORM_S8_UINT, DS),
+	ANKI_FMT(D32S8, UNORM, VK_FORMAT_D32_SFLOAT_S8_UINT, DS),
 	ANKI_FMT(R8G8B8_S3TC, UNORM, VK_FORMAT_BC1_RGB_UNORM_BLOCK, C),
 	ANKI_FMT(NONE, NONE, VK_FORMAT_BC1_RGB_SRGB_BLOCK, C),
 	ANKI_FMT(NONE, NONE, VK_FORMAT_BC1_RGBA_UNORM_BLOCK, C),
@@ -346,18 +346,18 @@ VkPolygonMode convertFillMode(FillMode ak)
 	return out;
 }
 
-VkCullModeFlags convertCullMode(CullMode ak)
+VkCullModeFlags convertCullMode(FaceSelectionBit ak)
 {
 	VkCullModeFlags out = 0;
 	switch(ak)
 	{
-	case CullMode::FRONT:
+	case FaceSelectionBit::FRONT:
 		out = VK_CULL_MODE_FRONT_BIT;
 		break;
-	case CullMode::BACK:
+	case FaceSelectionBit::BACK:
 		out = VK_CULL_MODE_BACK_BIT;
 		break;
-	case CullMode::FRONT_AND_BACK:
+	case FaceSelectionBit::FRONT_AND_BACK:
 		out = VK_CULL_MODE_FRONT_BIT | VK_CULL_MODE_BACK_BIT;
 		break;
 	default:
@@ -367,66 +367,66 @@ VkCullModeFlags convertCullMode(CullMode ak)
 	return out;
 }
 
-VkBlendFactor convertBlendMethod(BlendMethod ak)
+VkBlendFactor convertBlendFactor(BlendFactor ak)
 {
 	VkBlendFactor out = VK_BLEND_FACTOR_MAX_ENUM;
 	switch(ak)
 	{
-	case BlendMethod::ZERO:
+	case BlendFactor::ZERO:
 		out = VK_BLEND_FACTOR_ZERO;
 		break;
-	case BlendMethod::ONE:
+	case BlendFactor::ONE:
 		out = VK_BLEND_FACTOR_ONE;
 		break;
-	case BlendMethod::SRC_COLOR:
+	case BlendFactor::SRC_COLOR:
 		out = VK_BLEND_FACTOR_SRC_COLOR;
 		break;
-	case BlendMethod::ONE_MINUS_SRC_COLOR:
+	case BlendFactor::ONE_MINUS_SRC_COLOR:
 		out = VK_BLEND_FACTOR_ONE_MINUS_SRC_COLOR;
 		break;
-	case BlendMethod::DST_COLOR:
+	case BlendFactor::DST_COLOR:
 		out = VK_BLEND_FACTOR_DST_COLOR;
 		break;
-	case BlendMethod::ONE_MINUS_DST_COLOR:
+	case BlendFactor::ONE_MINUS_DST_COLOR:
 		out = VK_BLEND_FACTOR_ONE_MINUS_DST_COLOR;
 		break;
-	case BlendMethod::SRC_ALPHA:
+	case BlendFactor::SRC_ALPHA:
 		out = VK_BLEND_FACTOR_SRC_ALPHA;
 		break;
-	case BlendMethod::ONE_MINUS_SRC_ALPHA:
+	case BlendFactor::ONE_MINUS_SRC_ALPHA:
 		out = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA;
 		break;
-	case BlendMethod::DST_ALPHA:
+	case BlendFactor::DST_ALPHA:
 		out = VK_BLEND_FACTOR_DST_ALPHA;
 		break;
-	case BlendMethod::ONE_MINUS_DST_ALPHA:
+	case BlendFactor::ONE_MINUS_DST_ALPHA:
 		out = VK_BLEND_FACTOR_ONE_MINUS_DST_ALPHA;
 		break;
-	case BlendMethod::CONSTANT_COLOR:
+	case BlendFactor::CONSTANT_COLOR:
 		out = VK_BLEND_FACTOR_CONSTANT_COLOR;
 		break;
-	case BlendMethod::ONE_MINUS_CONSTANT_COLOR:
+	case BlendFactor::ONE_MINUS_CONSTANT_COLOR:
 		out = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR;
 		break;
-	case BlendMethod::CONSTANT_ALPHA:
+	case BlendFactor::CONSTANT_ALPHA:
 		out = VK_BLEND_FACTOR_CONSTANT_ALPHA;
 		break;
-	case BlendMethod::ONE_MINUS_CONSTANT_ALPHA:
+	case BlendFactor::ONE_MINUS_CONSTANT_ALPHA:
 		out = VK_BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA;
 		break;
-	case BlendMethod::SRC_ALPHA_SATURATE:
+	case BlendFactor::SRC_ALPHA_SATURATE:
 		out = VK_BLEND_FACTOR_SRC_ALPHA_SATURATE;
 		break;
-	case BlendMethod::SRC1_COLOR:
+	case BlendFactor::SRC1_COLOR:
 		out = VK_BLEND_FACTOR_SRC1_COLOR;
 		break;
-	case BlendMethod::ONE_MINUS_SRC1_COLOR:
+	case BlendFactor::ONE_MINUS_SRC1_COLOR:
 		out = VK_BLEND_FACTOR_ONE_MINUS_SRC1_COLOR;
 		break;
-	case BlendMethod::SRC1_ALPHA:
+	case BlendFactor::SRC1_ALPHA:
 		out = VK_BLEND_FACTOR_SRC1_ALPHA;
 		break;
-	case BlendMethod::ONE_MINUS_SRC1_ALPHA:
+	case BlendFactor::ONE_MINUS_SRC1_ALPHA:
 		out = VK_BLEND_FACTOR_ONE_MINUS_SRC1_ALPHA;
 		break;
 	default:
@@ -436,25 +436,25 @@ VkBlendFactor convertBlendMethod(BlendMethod ak)
 	return out;
 }
 
-VkBlendOp convertBlendFunc(BlendFunction ak)
+VkBlendOp convertBlendOperation(BlendOperation ak)
 {
 	VkBlendOp out = VK_BLEND_OP_MAX_ENUM;
 
 	switch(ak)
 	{
-	case BlendFunction::ADD:
+	case BlendOperation::ADD:
 		out = VK_BLEND_OP_ADD;
 		break;
-	case BlendFunction::SUBTRACT:
+	case BlendOperation::SUBTRACT:
 		out = VK_BLEND_OP_SUBTRACT;
 		break;
-	case BlendFunction::REVERSE_SUBTRACT:
+	case BlendOperation::REVERSE_SUBTRACT:
 		out = VK_BLEND_OP_REVERSE_SUBTRACT;
 		break;
-	case BlendFunction::MIN:
+	case BlendOperation::MIN:
 		out = VK_BLEND_OP_MIN;
 		break;
-	case BlendFunction::MAX:
+	case BlendOperation::MAX:
 		out = VK_BLEND_OP_MAX;
 		break;
 	default:
@@ -543,6 +543,11 @@ VkBufferUsageFlags convertBufferUsageBit(BufferUsageBit usageMask)
 	if(!!(usageMask & (BufferUsageBit::BUFFER_UPLOAD_SOURCE | BufferUsageBit::TEXTURE_UPLOAD_SOURCE)))
 	{
 		out |= VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	}
+
+	if(!!(usageMask & BufferUsageBit::TEXTURE_ALL))
+	{
+		out |= VK_BUFFER_USAGE_UNIFORM_TEXEL_BUFFER_BIT;
 	}
 
 	ANKI_ASSERT(out);
@@ -635,7 +640,7 @@ VkImageUsageFlags convertTextureUsage(TextureUsageBit ak, const PixelFormat& for
 		out |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	}
 
-	if(!!(ak & TextureUsageBit::UPLOAD))
+	if(!!(ak & TextureUsageBit::TRANSFER_DESTINATION))
 	{
 		out |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
 	}
@@ -646,6 +651,43 @@ VkImageUsageFlags convertTextureUsage(TextureUsageBit ak, const PixelFormat& for
 	}
 
 	ANKI_ASSERT(out);
+	return out;
+}
+
+VkStencilOp convertStencilOp(StencilOperation ak)
+{
+	VkStencilOp out = VK_STENCIL_OP_MAX_ENUM;
+
+	switch(ak)
+	{
+	case StencilOperation::KEEP:
+		out = VK_STENCIL_OP_KEEP;
+		break;
+	case StencilOperation::ZERO:
+		out = VK_STENCIL_OP_ZERO;
+		break;
+	case StencilOperation::REPLACE:
+		out = VK_STENCIL_OP_REPLACE;
+		break;
+	case StencilOperation::INCREMENT_AND_CLAMP:
+		out = VK_STENCIL_OP_INCREMENT_AND_CLAMP;
+		break;
+	case StencilOperation::DECREMENT_AND_CLAMP:
+		out = VK_STENCIL_OP_DECREMENT_AND_CLAMP;
+		break;
+	case StencilOperation::INVERT:
+		out = VK_STENCIL_OP_INVERT;
+		break;
+	case StencilOperation::INCREMENT_AND_WRAP:
+		out = VK_STENCIL_OP_INCREMENT_AND_WRAP;
+		break;
+	case StencilOperation::DECREMENT_AND_WRAP:
+		out = VK_STENCIL_OP_DECREMENT_AND_WRAP;
+		break;
+	default:
+		ANKI_ASSERT(0);
+	}
+
 	return out;
 }
 

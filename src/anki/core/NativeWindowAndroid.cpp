@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -40,7 +40,7 @@ void NativeWindowImpl::create(NativeWindowInitInfo& init)
 	EGLint format;
 	EGLConfig config;
 
-	ANKI_LOGI("Creating native window");
+	ANKI_CORE_LOGI("Creating native window");
 
 	ANKI_ASSERT(gAndroidApp);
 	android_app& andApp = *gAndroidApp;

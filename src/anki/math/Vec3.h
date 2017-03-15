@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -133,6 +133,9 @@ using IVec3 = TVec3<I32>;
 
 /// 32bit unsigned integer 3D vector
 using UVec3 = TVec3<U32>;
+
+/// 64bit float 3D vector
+using DVec3 = TVec3<F64>;
 /// @}
 
 } // end namespace anki

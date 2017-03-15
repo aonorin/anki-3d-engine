@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -48,10 +48,9 @@ RenderComponentVariable::~RenderComponentVariable()
 {
 }
 
-RenderComponent::RenderComponent(SceneNode* node, const Material* mtl, U64 hash)
+RenderComponent::RenderComponent(SceneNode* node, const Material* mtl)
 	: SceneComponent(SceneComponentType::RENDER, node)
 	, m_mtl(mtl)
-	, m_hash(hash)
 {
 }
 

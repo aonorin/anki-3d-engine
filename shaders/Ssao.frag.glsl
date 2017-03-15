@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -7,31 +7,24 @@
 #include "shaders/Common.glsl"
 #include "shaders/Pack.glsl"
 #include "shaders/Functions.glsl"
-#include "shaders/RendererCommonUniforms.glsl"
 
-const vec3 KERNEL[KERNEL_SIZE] = KERNEL_ARRAY; // This will be appended in C++
+const vec2 KERNEL[SAMPLES] = KERNEL_ARRAY; // This will be appended in C++
+const float BIAS = 0.2;
+const float STRENGTH = 1.1;
 
-// Radius in game units
-const float RADIUS = 1.1;
-
-// Initial is 1.0 but the bigger it is the more darker the SSAO factor gets
-const float DARKNESS_MULTIPLIER = 2.0;
-
-// The algorithm will chose the number of samples depending on the distance
-const float MAX_DISTANCE = 40.0;
-
-layout(location = 0) in vec2 in_texCoords;
+layout(location = 0) in vec2 in_uv;
 
 layout(location = 0) out float out_color;
 
 layout(ANKI_UBO_BINDING(0, 0), std140, row_major) uniform _blk
 {
-	RendererCommonUniforms u_uniforms;
+	vec4 u_unprojectionParams;
+	vec4 u_projectionMat;
 };
 
 layout(ANKI_TEX_BINDING(0, 0)) uniform sampler2D u_mMsDepthRt;
 layout(ANKI_TEX_BINDING(0, 1)) uniform sampler2D u_msRt;
-layout(ANKI_TEX_BINDING(0, 2)) uniform sampler2D u_noiseMap;
+layout(ANKI_TEX_BINDING(0, 2)) uniform sampler2DArray u_noiseMap;
 
 // Get normal
 vec3 readNormal(in vec2 uv)
@@ -42,20 +35,17 @@ vec3 readNormal(in vec2 uv)
 }
 
 // Read the noise tex
-vec3 readRandom(in vec2 uv)
+float readRandom(in vec2 uv)
 {
 	const vec2 tmp = vec2(float(WIDTH) / float(NOISE_MAP_SIZE), float(HEIGHT) / float(NOISE_MAP_SIZE));
-
-	vec3 noise = texture(u_noiseMap, tmp * uv).xyz;
-	// return normalize(noise * 2.0 - 1.0);
-	return noise;
+	return texture(u_noiseMap, vec3(tmp * uv, 0.0)).r;
 }
 
 // Returns the Z of the position in view space
 float readZ(in vec2 uv)
 {
 	float depth = texture(u_mMsDepthRt, uv).r;
-	float z = u_uniforms.projectionParams.z / (u_uniforms.projectionParams.w + depth);
+	float z = u_unprojectionParams.z / (u_unprojectionParams.w + depth);
 	return z;
 }
 
@@ -65,57 +55,51 @@ vec3 readPosition(in vec2 uv)
 	vec3 fragPosVspace;
 	fragPosVspace.z = readZ(uv);
 
-	fragPosVspace.xy = (2.0 * uv - 1.0) * u_uniforms.projectionParams.xy * fragPosVspace.z;
+	fragPosVspace.xy = (2.0 * uv - 1.0) * u_unprojectionParams.xy * fragPosVspace.z;
 
 	return fragPosVspace;
 }
 
+vec4 project(vec4 point)
+{
+	return projectPerspective(point, u_projectionMat.x, u_projectionMat.y, u_projectionMat.z, u_projectionMat.w);
+}
+
 void main(void)
 {
-	vec3 origin = readPosition(in_texCoords);
+	vec2 ndc = in_uv * 2.0 - 1.0;
+	vec3 origin = readPosition(in_uv);
+	vec3 normal = readNormal(in_uv);
 
-	// Chose the number of samples dynamicaly
-	float sampleCountf = max(1.0 + origin.z / MAX_DISTANCE, 0.0) * float(KERNEL_SIZE);
-	uint sampleCount = uint(sampleCountf);
+	float randFactor = readRandom(in_uv);
+	float randAng = randFactor * PI * 2.0;
+	float cosAng = cos(randAng);
+	float sinAng = sin(randAng);
 
-	vec3 normal = readNormal(in_texCoords);
-	vec3 rvec = readRandom(in_texCoords);
+	// Find the projected radius
+	vec3 sphereLimit = origin + vec3(RADIUS, 0.0, 0.0);
+	vec4 projSphereLimit = project(vec4(sphereLimit, 1.0));
+	vec2 projSphereLimit2 = projSphereLimit.xy / projSphereLimit.w;
+	float projRadius = length(projSphereLimit2 - ndc);
 
-	vec3 tangent = normalize(rvec - normal * dot(rvec, normal));
-	vec3 bitangent = cross(normal, tangent);
-	mat3 tbn = mat3(tangent, bitangent, normal);
-
-	// Iterate kernel
+	// Integrate
 	float factor = 0.0;
-	for(uint i = 0U; i < sampleCount; ++i)
+	for(uint i = 0U; i < SAMPLES; ++i)
 	{
-		// get position
-		vec3 sample_ = tbn * KERNEL[i];
-		sample_ = sample_ * RADIUS + origin;
+		// Rotate the disk point
+		vec2 diskPoint = KERNEL[i] * projRadius;
+		vec2 rotDiskPoint;
+		rotDiskPoint.x = diskPoint.x * cosAng - diskPoint.y * sinAng;
+		rotDiskPoint.y = diskPoint.y * cosAng + diskPoint.x * sinAng;
+		vec2 finalDiskPoint = ndc + rotDiskPoint;
 
-		// project sample position:
-		vec4 offset = vec4(sample_, 1.0);
-		offset = u_uniforms.projectionMatrix * offset;
-		offset.xy = offset.xy / (2.0 * offset.w) + 0.5; // persp div &
-		// to NDC -> [0, 1]
+		vec3 s = readPosition(NDC_TO_UV(finalDiskPoint));
+		vec3 u = s - origin;
 
-		// get sample depth:
-		float sampleDepth = readZ(offset.xy);
+		float f = max(dot(normal, u) + BIAS, 0.0) / max(dot(u, u), EPSILON);
 
-		// range check & accumulate:
-		const float ADVANCE = DARKNESS_MULTIPLIER / sampleCountf;
-
-#if 0
-		float rangeCheck =
-			abs(origin.z - sampleDepth) * (1.0 / (RADIUS * 10.0));
-		rangeCheck = 1.0 - rangeCheck;
-
-		factor += clamp(sampleDepth - sample_.z, 0.0, ADVANCE) * rangeCheck;
-#else
-		float rangeCheck = abs(origin.z - sampleDepth) < RADIUS ? 1.0 : 0.0;
-		factor += (sampleDepth > sample_.z ? ADVANCE : 0.0) * rangeCheck;
-#endif
+		factor += f;
 	}
 
-	out_color = 1.0 - factor;
+	out_color = 1.0 - factor / float(SAMPLES) * STRENGTH;
 }

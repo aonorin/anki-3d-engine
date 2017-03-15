@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,6 +15,7 @@ namespace anki
 // Forward
 class FrustumComponent;
 class LightBin;
+enum class ShaderVariantBit : U8;
 
 /// @addtogroup renderer
 /// @{
@@ -40,33 +41,46 @@ anki_internal:
 		return m_rt;
 	}
 
-	/// Get the number of mips for IS's render target.
-	U getRtMipmapCount() const
+	const LightBin& getLightBin() const
 	{
-		return m_rtMipCount;
+		return *m_lightBin;
 	}
 
 private:
-	static const U COMMON_VARS_LOCATION = 0;
-	static const U P_LIGHTS_LOCATION = 1;
-	static const U S_LIGHTS_LOCATION = 2;
-	static const U PROBES_LOCATION = 3;
-	static const U CLUSTERS_LOCATION = 0;
-	static const U LIGHT_IDS_LOCATION = 1;
-
 	/// The IS render target
 	TexturePtr m_rt;
-	U8 m_rtMipCount = 0;
+
+	Array<U32, 3> m_clusterCounts = {{0, 0, 0}};
+	U32 m_clusterCount = 0;
 
 	/// The IS FBO
 	FramebufferPtr m_fb;
 
-	ResourceGroupPtr m_rcGroup;
-
 	// Light shaders
 	ShaderResourcePtr m_lightVert;
 	ShaderResourcePtr m_lightFrag;
-	PipelinePtr m_lightPpline;
+	ShaderProgramPtr m_lightProg;
+
+	class ShaderVariant
+	{
+	public:
+		ShaderResourcePtr m_lightFrag;
+		ShaderProgramPtr m_lightProg;
+	};
+
+	using Key = ShaderVariantBit;
+
+	/// Hash the hash.
+	class Hasher
+	{
+	public:
+		U64 operator()(const Key& b) const
+		{
+			return U64(b);
+		}
+	};
+
+	HashMap<Key, ShaderVariant, Hasher> m_shaderVariantMap;
 
 	LightBin* m_lightBin = nullptr;
 
@@ -79,6 +93,9 @@ private:
 	ANKI_USE_RESULT Error initInternal(const ConfigSet& initializer);
 
 	void updateCommonBlock(RenderingContext& ctx);
+
+	ANKI_USE_RESULT Error getOrCreateProgram(
+		ShaderVariantBit variantMask, RenderingContext& ctx, ShaderProgramPtr& prog);
 };
 /// @}
 

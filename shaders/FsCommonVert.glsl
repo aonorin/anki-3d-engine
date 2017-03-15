@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -14,7 +14,8 @@
 #define LIGHT_SS_BINDING 0
 #define LIGHT_TEX_BINDING 1
 #define LIGHT_UBO_BINDING 0
-#include "shaders/IsFsCommon.glsl"
+#define LIGHT_MINIMAL
+#include "shaders/ClusterLightCommon.glsl"
 #undef LIGHT_SET
 #undef LIGHT_SS_BINDING
 #undef LIGHT_TEX_BINDING

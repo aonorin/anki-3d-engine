@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -43,7 +43,7 @@ Config::Config()
 	newOption("sslf.enabled", true);
 
 	newOption("pps.enabled", true);
-	newOption("pps.sharpen", true);
+	newOption("pps.sharpen", false);
 	newOption("pps.gammaCorrection", true);
 
 	newOption("ir.enabled", true);
@@ -60,34 +60,30 @@ Config::Config()
 	newOption("height", 768);
 	newOption("renderingQuality", 1.0); // Applies only to MainRenderer
 	newOption("lodDistance", 10.0); // Distance that used to calculate the LOD
-	newOption("samples", 1);
 	newOption("tessellation", true);
+	newOption("clusterSizeX", 32);
+	newOption("clusterSizeY", 26);
 	newOption("clusterSizeZ", 32);
 	newOption("imageReflectionMaxDistance", 30.0);
 
-	//
-	// GR
-	//
-	newOption("gr.uniformPerFrameMemorySize", 1024 * 1024 * 16);
-	newOption("gr.storagePerFrameMemorySize", 1024 * 1024 * 16);
-	newOption("gr.vertexPerFrameMemorySize", 1024 * 1024 * 10);
-	newOption("gr.transferPerFrameMemorySize", 1024 * 1024 * 1);
-	newOption("gr.transferPersistentMemorySize", (4096 / 4) * (4096 / 4) * 16 * 4);
-
-	//
 	// Resource
-	//
 	newOption("maxTextureSize", 1024 * 1024);
 	newOption("textureAnisotropy", 8);
 	newOption("dataPaths", ".");
 
-	//
 	// Window
-	//
 	newOption("glmajor", 4);
 	newOption("glminor", 5);
 	newOption("fullscreenDesktopResolution", false);
 	newOption("debugContext", false);
+	newOption("vsync", false);
+
+	// Core
+	newOption("core.uniformPerFrameMemorySize", 1024 * 1024 * 16);
+	newOption("core.storagePerFrameMemorySize", 1024 * 1024 * 16);
+	newOption("core.vertexPerFrameMemorySize", 1024 * 1024 * 10);
+	newOption("core.transferPerFrameMemorySize", 1024 * 1024 * 128);
+	newOption("core.textureBufferPerFrameMemorySize", 1024 * 1024 * 1);
 }
 
 Config::~Config()

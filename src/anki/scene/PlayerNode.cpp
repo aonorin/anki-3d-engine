@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -42,7 +42,7 @@ public:
 			origin.y() += 1.9;
 
 			// Set rotation
-			Mat3x4 rot(Euler(ang * y * -11.25, ang * x * -20.0, 0.0));
+			Mat3x4 rot(Euler(ang * y * 11.25, ang * x * -20.0, 0.0));
 
 			rot = move.getLocalRotation().combineTransformations(rot);
 
@@ -100,7 +100,7 @@ public:
 			moveVec.x() += 1.0;
 		}
 
-		Vec4 dir = move.getLocalRotation().getColumn(2).xyz0();
+		Vec4 dir = -move.getLocalRotation().getZAxis().xyz0();
 		dir.y() = 0.0;
 		dir.normalize();
 

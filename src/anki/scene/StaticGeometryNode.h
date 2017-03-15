@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -12,6 +12,9 @@
 
 namespace anki
 {
+
+// Forward
+class ModelPatch;
 
 /// @addtogroup scene
 /// @{
@@ -31,7 +34,7 @@ public:
 private:
 	const ModelPatch* m_modelPatch;
 
-	ANKI_USE_RESULT Error buildRendering(RenderingBuildInfo& data) const;
+	ANKI_USE_RESULT Error buildRendering(const RenderingBuildInfoIn& in, RenderingBuildInfoOut& out) const;
 };
 
 /// Static geometry scene node

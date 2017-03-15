@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -91,6 +91,18 @@ public:
 	uint32_t m_meshIndex; ///< Points to the scene that is not triangulated.
 };
 
+class DecalNode
+{
+public:
+	aiMatrix4x4 m_transform;
+	std::string m_diffuseTextureAtlasFilename;
+	std::string m_diffuseSubTextureName;
+	std::string m_normalRoughnessAtlasFilename;
+	std::string m_normalRoughnessSubTextureName;
+	aiVector3D m_size;
+	std::array<float, 2> m_factors = {{1.0, 1.0}};
+};
+
 /// AnKi exporter.
 class Exporter
 {
@@ -119,6 +131,7 @@ public:
 	std::vector<ReflectionProbe> m_reflectionProbes;
 	std::vector<ReflectionProxy> m_reflectionProxies;
 	std::vector<OccluderNode> m_occluders;
+	std::vector<DecalNode> m_decals;
 
 	/// Load the scene.
 	void load();

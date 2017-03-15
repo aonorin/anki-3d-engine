@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -7,6 +7,7 @@
 #include <anki/resource/ImageLoader.h>
 #include <anki/resource/ResourceManager.h>
 #include <anki/resource/AsyncLoader.h>
+#include <anki/core/StagingGpuMemoryManager.h>
 
 namespace anki
 {
@@ -17,7 +18,8 @@ class TexUploadTask : public AsyncLoaderTask
 public:
 	ImageLoader m_loader;
 	TexturePtr m_tex;
-	GrManager* m_gr ANKI_DBG_NULLIFY_PTR;
+	GrManager* m_gr ANKI_DBG_NULLIFY;
+	StagingGpuMemoryManager* m_stagingMem ANKI_DBG_NULLIFY;
 	U m_layers = 0;
 	U m_faces = 0;
 	TextureType m_texType;
@@ -52,7 +54,6 @@ Error TexUploadTask::operator()(AsyncLoaderTaskContext& ctx)
 				PtrSize surfOrVolSize;
 				const void* surfOrVolData;
 				PtrSize allocationSize;
-				const BufferUsageBit uploadBuffUsage = BufferUsageBit::TEXTURE_UPLOAD_SOURCE;
 
 				if(m_texType == TextureType::_3D)
 				{
@@ -73,8 +74,8 @@ Error TexUploadTask::operator()(AsyncLoaderTaskContext& ctx)
 
 				ANKI_ASSERT(allocationSize >= surfOrVolSize);
 
-				TransientMemoryToken token;
-				void* data = m_gr->tryAllocateFrameTransientMemory(allocationSize, uploadBuffUsage, token);
+				StagingGpuMemoryToken token;
+				void* data = m_stagingMem->tryAllocateFrame(allocationSize, StagingGpuMemoryType::TRANSFER, token);
 
 				if(data)
 				{
@@ -94,12 +95,13 @@ Error TexUploadTask::operator()(AsyncLoaderTaskContext& ctx)
 					{
 						TextureVolumeInfo vol(mip);
 
-						cmdb->setTextureVolumeBarrier(m_tex, TextureUsageBit::NONE, TextureUsageBit::UPLOAD, vol);
+						cmdb->setTextureVolumeBarrier(
+							m_tex, TextureUsageBit::NONE, TextureUsageBit::TRANSFER_DESTINATION, vol);
 
-						cmdb->uploadTextureVolume(m_tex, vol, token);
+						cmdb->copyBufferToTextureVolume(token.m_buffer, token.m_offset, token.m_range, m_tex, vol);
 
 						cmdb->setTextureVolumeBarrier(m_tex,
-							TextureUsageBit::UPLOAD,
+							TextureUsageBit::TRANSFER_DESTINATION,
 							TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION,
 							vol);
 					}
@@ -107,12 +109,13 @@ Error TexUploadTask::operator()(AsyncLoaderTaskContext& ctx)
 					{
 						TextureSurfaceInfo surf(mip, 0, face, layer);
 
-						cmdb->setTextureSurfaceBarrier(m_tex, TextureUsageBit::NONE, TextureUsageBit::UPLOAD, surf);
+						cmdb->setTextureSurfaceBarrier(
+							m_tex, TextureUsageBit::NONE, TextureUsageBit::TRANSFER_DESTINATION, surf);
 
-						cmdb->uploadTextureSurface(m_tex, surf, token);
+						cmdb->copyBufferToTextureSurface(token.m_buffer, token.m_offset, token.m_range, m_tex, surf);
 
 						cmdb->setTextureSurfaceBarrier(m_tex,
-							TextureUsageBit::UPLOAD,
+							TextureUsageBit::TRANSFER_DESTINATION,
 							TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION,
 							surf);
 					}
@@ -155,8 +158,9 @@ TextureResource::~TextureResource()
 Error TextureResource::load(const ResourceFilename& filename)
 {
 	TextureInitInfo init;
-	init.m_usage =
-		TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION | TextureUsageBit::UPLOAD;
+	init.m_usage = TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION
+		| TextureUsageBit::TRANSFER_DESTINATION;
+	init.m_usageWhenEncountered = TextureUsageBit::SAMPLED_FRAGMENT | TextureUsageBit::SAMPLED_TESSELLATION_EVALUATION;
 	U faces = 0;
 
 	// Load image
@@ -271,6 +275,7 @@ Error TextureResource::load(const ResourceFilename& filename)
 	task->m_layers = init.m_layerCount;
 	task->m_faces = faces;
 	task->m_gr = &getManager().getGrManager();
+	task->m_stagingMem = &getManager().getStagingGpuMemoryManager();
 	task->m_tex = m_tex;
 	task->m_texType = init.m_type;
 

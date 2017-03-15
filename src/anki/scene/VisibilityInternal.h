@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -30,6 +30,16 @@ public:
 	{
 		ANKI_ASSERT(a.m_node && b.m_node);
 		return a.m_frustumDistanceSquared < b.m_frustumDistanceSquared;
+	}
+};
+
+class RevDistanceSortFunctor
+{
+public:
+	Bool operator()(const VisibleNode& a, const VisibleNode& b)
+	{
+		ANKI_ASSERT(a.m_node && b.m_node);
+		return a.m_frustumDistanceSquared > b.m_frustumDistanceSquared;
 	}
 };
 
@@ -140,6 +150,7 @@ public:
 	U32 m_taskCount;
 	WeakPtr<VisibilityTestResults> m_result;
 	Timestamp m_timestamp = 0;
+	SoftwareRasterizer* m_r ANKI_DBG_NULLIFY;
 
 	/// Thread hive task.
 	static void callback(void* ud, U32 threadId, ThreadHive& hive)
@@ -151,6 +162,11 @@ public:
 private:
 	void test(ThreadHive& hive);
 	void updateTimestamp(const SceneNode& node);
+
+	ANKI_USE_RESULT Bool testAgainstRasterizer(const CollisionShape& cs, const Aabb& aabb) const
+	{
+		return (m_r) ? m_r->visibilityTest(cs, aabb) : true;
+	}
 };
 
 /// Task that combines and sorts the results.

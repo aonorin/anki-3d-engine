@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -16,14 +16,14 @@ Error LightEvent::init(F32 startTime, F32 duration, SceneNode* light)
 
 	LightComponent& lightc = light->getComponent<LightComponent>();
 
-	switch(lightc.getLightType())
+	switch(lightc.getLightComponentType())
 	{
-	case LightComponent::LightType::POINT:
+	case LightComponentType::POINT:
 	{
 		m_originalRadius = lightc.getRadius();
 	}
 	break;
-	case LightComponent::LightType::SPOT:
+	case LightComponentType::SPOT:
 		ANKI_ASSERT("TODO");
 		break;
 	default:
@@ -41,18 +41,18 @@ Error LightEvent::update(F32 prevUpdateTime, F32 crntTime)
 {
 	F32 freq = randRange(m_freq - m_freqDeviation, m_freq + m_freqDeviation);
 
-	F32 factor = sin(crntTime * freq * getPi<F32>()) / 2.0 + 0.5;
+	F32 factor = sin(crntTime * freq * PI) / 2.0 + 0.5;
 	LightComponent& lightc = getSceneNode()->getComponent<LightComponent>();
 
 	// Update radius
 	if(m_radiusMultiplier != 0.0)
 	{
-		switch(lightc.getLightType())
+		switch(lightc.getLightComponentType())
 		{
-		case LightComponent::LightType::POINT:
+		case LightComponentType::POINT:
 			lightc.setRadius(m_originalRadius + factor * m_radiusMultiplier);
 			break;
-		case LightComponent::LightType::SPOT:
+		case LightComponentType::SPOT:
 			ANKI_ASSERT("TODO");
 			break;
 		default:

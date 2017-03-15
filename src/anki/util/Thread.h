@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -75,7 +75,7 @@ private:
 	ThreadCallback m_callback = nullptr; ///< The callback
 	void* m_userData = nullptr; ///< The user date to pass to the callback
 
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 	Bool8 m_started = false;
 #endif
 };
@@ -180,6 +180,24 @@ public:
 
 	/// Wait until all threads call wait().
 	Bool wait();
+
+private:
+	void* m_impl = nullptr;
+};
+
+/// Semaphore for thread synchronization.
+class Semaphore : public NonCopyable
+{
+public:
+	Semaphore(I32 initialValue);
+
+	~Semaphore();
+
+	/// Same as sem_wait().
+	void wait();
+
+	/// Same as sem_post().
+	void post();
 
 private:
 	void* m_impl = nullptr;

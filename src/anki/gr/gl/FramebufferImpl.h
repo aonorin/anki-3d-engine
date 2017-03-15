@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -35,6 +35,23 @@ public:
 	/// Bind it to the state. Call it in rendering thread
 	void bind(const GlState& state);
 
+	U getColorBufferCount() const
+	{
+		return m_in.m_colorAttachmentCount;
+	}
+
+	Bool hasDepthBuffer() const
+	{
+		return m_in.m_depthStencilAttachment.m_texture.isCreated()
+			&& !!(m_in.m_depthStencilAttachment.m_aspect & DepthStencilAspectBit::DEPTH);
+	}
+
+	Bool hasStencilBuffer() const
+	{
+		return m_in.m_depthStencilAttachment.m_texture.isCreated()
+			&& !!(m_in.m_depthStencilAttachment.m_aspect & DepthStencilAspectBit::STENCIL);
+	}
+
 private:
 	FramebufferInitInfo m_in;
 
@@ -42,6 +59,7 @@ private:
 	Array<GLenum, MAX_COLOR_ATTACHMENTS + 1> m_invalidateBuffers;
 	U8 m_invalidateBuffersCount = 0;
 	Bool8 m_bindDefault = false;
+	DepthStencilAspectBit m_dsAspect = DepthStencilAspectBit::NONE;
 
 	/// Attach a texture
 	static void attachTextureInternal(GLenum attachment, const TextureImpl& tex, const FramebufferAttachmentInfo& info);

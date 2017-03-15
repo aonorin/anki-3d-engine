@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -84,6 +84,35 @@ HashMapBase<TKey, TValue, THasher, TCompare, TNode>::find(const Key& key)
 	}
 
 	return Iterator(node);
+}
+
+template<typename TKey, typename TValue, typename THasher, typename TCompare, typename TNode>
+typename HashMapBase<TKey, TValue, THasher, TCompare, TNode>::ConstIterator
+HashMapBase<TKey, TValue, THasher, TCompare, TNode>::find(const Key& key) const
+{
+	const U64 hash = THasher()(key);
+
+	const TNode* node = m_root;
+	while(node)
+	{
+		const U64 bhash = node->m_hash;
+
+		if(hash < bhash)
+		{
+			node = node->m_left;
+		}
+		else if(hash > bhash)
+		{
+			node = node->m_right;
+		}
+		else
+		{
+			// Found
+			break;
+		}
+	}
+
+	return ConstIterator(node);
 }
 
 template<typename TKey, typename TValue, typename THasher, typename TCompare, typename TNode>

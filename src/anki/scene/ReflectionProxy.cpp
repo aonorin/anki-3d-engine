@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -53,7 +53,7 @@ Error ReflectionProxy::init(const CString& proxyMesh)
 
 	if((loader.getHeader().m_flags & MeshLoader::Flag::QUADS) == MeshLoader::Flag::NONE)
 	{
-		ANKI_LOGE("Expecting quad mesh");
+		ANKI_SCENE_LOGE("Expecting quad mesh");
 		return ErrorCode::USER_DATA;
 	}
 

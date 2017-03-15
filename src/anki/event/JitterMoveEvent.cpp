@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -43,7 +43,7 @@ Error JitterMoveEvent::update(F32 prevUpdateTime, F32 crntTime)
 
 	Transform trf = move.getLocalTransform();
 
-	F32 factor = sin(getDelta(crntTime) * getPi<F32>());
+	F32 factor = sin(getDelta(crntTime) * PI);
 
 	trf.getOrigin() = linearInterpolate(m_originalPos, m_newPos, factor);
 

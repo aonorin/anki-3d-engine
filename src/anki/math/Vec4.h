@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -211,6 +211,12 @@ TVec4<F32> TVec4<F32>::cross(const TVec4<F32>& b) const;
 
 template<>
 TVec4<F32> TVec4<F32>::Base::getAbs() const;
+
+template<>
+F32 TVec4<F32>::Base::getLengthSquared() const;
+
+template<>
+TVec4<F32> TVec4<F32>::Base::operator-() const;
 
 #elif ANKI_SIMD == ANKI_SIMD_NEON
 

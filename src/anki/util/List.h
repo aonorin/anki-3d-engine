@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -38,12 +38,12 @@ public:
 	{
 	}
 
-	T& getValue()
+	T& getListNodeValue()
 	{
 		return m_value;
 	}
 
-	const T& getValue() const
+	const T& getListNodeValue() const
 	{
 		return m_value;
 	}
@@ -90,13 +90,13 @@ public:
 	TValueReference operator*() const
 	{
 		ANKI_ASSERT(m_node);
-		return m_node->getValue();
+		return m_node->getListNodeValue();
 	}
 
 	TValuePointer operator->() const
 	{
 		ANKI_ASSERT(m_node);
-		return &m_node->getValue();
+		return &m_node->getListNodeValue();
 	}
 
 	ListIterator& operator++()
@@ -162,13 +162,15 @@ public:
 		return *this;
 	}
 
-	Bool operator==(const ListIterator& b) const
+	template<typename YNodePointer, typename YValuePointer, typename YValueReference, typename YList>
+	Bool operator==(const ListIterator<YNodePointer, YValuePointer, YValueReference, YList>& b) const
 	{
 		ANKI_ASSERT(m_list == b.m_list && "Comparing iterators from different lists");
 		return m_node == b.m_node;
 	}
 
-	Bool operator!=(const ListIterator& b) const
+	template<typename YNodePointer, typename YValuePointer, typename YValueReference, typename YList>
+	Bool operator!=(const ListIterator<YNodePointer, YValuePointer, YValueReference, YList>& b) const
 	{
 		return !(*this == b);
 	}
@@ -204,28 +206,28 @@ public:
 	ConstReference getFront() const
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_head->getValue();
+		return m_head->getListNodeValue();
 	}
 
 	/// Get first element.
 	Reference getFront()
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_head->getValue();
+		return m_head->getListNodeValue();
 	}
 
 	/// Get last element.
 	ConstReference getBack() const
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_tail->getValue();
+		return m_tail->getListNodeValue();
 	}
 
 	/// Get last element.
 	Reference getBack()
 	{
 		ANKI_ASSERT(!isEmpty());
-		return m_tail->getValue();
+		return m_tail->getListNodeValue();
 	}
 
 	/// Get begin.
@@ -498,14 +500,14 @@ public:
 	template<typename... TArgs>
 	void emplaceBack(TArgs&&... args)
 	{
-		Base::emplaceBack(m_alloc, std::forward(args)...);
+		Base::emplaceBack(m_alloc, std::forward<TArgs>(args)...);
 	}
 
 	/// Construct element at the beginning of the list.
 	template<typename... TArgs>
 	void emplaceFront(TArgs&&... args)
 	{
-		Base::emplaceFront(m_alloc, std::forward(args)...);
+		Base::emplaceFront(m_alloc, std::forward<TArgs>(args)...);
 	}
 
 	/// Construct element at the the given position.
@@ -571,12 +573,12 @@ private:
 	{
 	}
 
-	TClass& getValue()
+	TClass& getListNodeValue()
 	{
 		return *static_cast<TClass*>(this);
 	}
 
-	const TClass& getValue() const
+	const TClass& getListNodeValue() const
 	{
 		return *static_cast<const TClass*>(this);
 	}

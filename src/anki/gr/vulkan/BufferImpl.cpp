@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -20,7 +20,7 @@ BufferImpl::~BufferImpl()
 
 	if(m_memHandle)
 	{
-		getGrManagerImpl().getGpuMemoryAllocator().freeMemory(m_memHandle);
+		getGrManagerImpl().getGpuMemoryManager().freeMemory(m_memHandle);
 	}
 }
 
@@ -54,22 +54,22 @@ Error BufferImpl::init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit ac
 		// Only write
 
 		// Device & host but not coherent
-		memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(req.memoryTypeBits,
+		memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(req.memoryTypeBits,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 			VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 		// Fallback: host and not coherent
 		if(memIdx == MAX_U32)
 		{
-			memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+			memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 				req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 		}
 
 		// Fallback: any host
 		if(memIdx == MAX_U32)
 		{
-			ANKI_LOGW("Vulkan: Using a fallback mode for write-only buffer");
-			memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+			ANKI_VK_LOGW("Vulkan: Using a fallback mode for write-only buffer");
+			memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 				req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 0);
 		}
 	}
@@ -78,7 +78,7 @@ Error BufferImpl::init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit ac
 		// Read or read/write
 
 		// Cached & coherent
-		memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(req.memoryTypeBits,
+		memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(req.memoryTypeBits,
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT
 				| VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			0);
@@ -86,15 +86,15 @@ Error BufferImpl::init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit ac
 		// Fallback: Just cached
 		if(memIdx == MAX_U32)
 		{
-			memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+			memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 				req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_CACHED_BIT, 0);
 		}
 
 		// Fallback: Just host
 		if(memIdx == MAX_U32)
 		{
-			ANKI_LOGW("Vulkan: Using a fallback mode for read/write buffer");
-			memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+			ANKI_VK_LOGW("Vulkan: Using a fallback mode for read/write buffer");
+			memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 				req.memoryTypeBits, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT, 0);
 		}
 	}
@@ -105,13 +105,13 @@ Error BufferImpl::init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit ac
 		ANKI_ASSERT(access == BufferMapAccessBit::NONE);
 
 		// Device only
-		memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+		memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 			req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT);
 
 		// Fallback: Device with anything else
 		if(memIdx == MAX_U32)
 		{
-			memIdx = getGrManagerImpl().getGpuMemoryAllocator().findMemoryType(
+			memIdx = getGrManagerImpl().getGpuMemoryManager().findMemoryType(
 				req.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, 0);
 		}
 	}
@@ -122,7 +122,7 @@ Error BufferImpl::init(PtrSize size, BufferUsageBit usage, BufferMapAccessBit ac
 	m_memoryFlags = props.memoryTypes[memIdx].propertyFlags;
 
 	// Allocate
-	getGrManagerImpl().getGpuMemoryAllocator().allocateMemory(memIdx, req.size, req.alignment, true, m_memHandle);
+	getGrManagerImpl().getGpuMemoryManager().allocateMemory(memIdx, req.size, req.alignment, true, m_memHandle);
 
 	// Bind mem to buffer
 	ANKI_VK_CHECK(vkBindBufferMemory(getDevice(), m_handle, m_memHandle.m_memory, m_memHandle.m_offset));
@@ -141,10 +141,10 @@ void* BufferImpl::map(PtrSize offset, PtrSize range, BufferMapAccessBit access)
 	ANKI_ASSERT(!m_mapped);
 	ANKI_ASSERT(offset + range <= m_size);
 
-	void* ptr = getGrManagerImpl().getGpuMemoryAllocator().getMappedAddress(m_memHandle);
+	void* ptr = getGrManagerImpl().getGpuMemoryManager().getMappedAddress(m_memHandle);
 	ANKI_ASSERT(ptr);
 
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 	m_mapped = true;
 #endif
 

@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -83,5 +83,28 @@ PtrSize computeSurfaceSize(U width, U height, const PixelFormat& fmt);
 
 /// Compute the size of the volume.
 PtrSize computeVolumeSize(U width, U height, U depth, const PixelFormat& fmt);
+
+inline Bool stencilTestDisabled(StencilOperation stencilFail,
+	StencilOperation stencilPassDepthFail,
+	StencilOperation stencilPassDepthPass,
+	CompareOperation compare)
+{
+	return stencilFail == StencilOperation::KEEP && stencilPassDepthFail == StencilOperation::KEEP
+		&& stencilPassDepthPass == StencilOperation::KEEP && compare == CompareOperation::ALWAYS;
+}
+
+inline Bool blendingDisabled(BlendFactor srcFactorRgb,
+	BlendFactor dstFactorRgb,
+	BlendFactor srcFactorA,
+	BlendFactor dstFactorA,
+	BlendOperation opRgb,
+	BlendOperation opA)
+{
+	Bool dontWantBlend = srcFactorRgb == BlendFactor::ONE && dstFactorRgb == BlendFactor::ZERO
+		&& srcFactorA == BlendFactor::ONE && dstFactorA == BlendFactor::ZERO
+		&& (opRgb == BlendOperation::ADD || opRgb == BlendOperation::SUBTRACT)
+		&& (opA == BlendOperation::ADD || opA == BlendOperation::SUBTRACT);
+	return dontWantBlend;
+}
 
 } // end namespace anki

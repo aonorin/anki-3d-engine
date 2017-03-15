@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,7 +15,7 @@ namespace anki
 
 // Enable the exception on debug. Calling glGetError calls serialization
 
-#if ANKI_DEBUG
+#if ANKI_EXTRA_CHECKS
 
 /// The function exits if there is an OpenGL error. Use it with the
 /// ANKI_CHECK_GL_ERROR macro

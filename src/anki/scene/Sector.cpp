@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -12,7 +12,6 @@
 #include <anki/util/Logger.h>
 #include <anki/resource/ResourceManager.h>
 #include <anki/resource/MeshLoader.h>
-#include <anki/renderer/Renderer.h>
 
 namespace anki
 {
@@ -327,7 +326,7 @@ void Sector::tryRemoveSpatialComponent(SpatialComponent* sp)
 	}
 	else
 	{
-#if ANKI_ASSERTIONS
+#if ANKI_EXTRA_CHECKS
 		ANKI_ASSERT(findSpatialComponent(sp) == m_spatials.getEnd());
 #endif
 	}
@@ -451,7 +450,7 @@ void SectorGroup::binSpatial(SpatialComponent* sp)
 			}
 
 			// Detailed test
-			const F32 smallf = getEpsilon<F32>() * 10.0;
+			const F32 smallf = EPSILON * 10.0;
 			Aabb smallBox(center, center + Vec4(smallf, smallf, smallf, 0.0));
 			if(collide)
 			{

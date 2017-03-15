@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -15,6 +15,7 @@ namespace anki
 // Forward
 class Renderer;
 class DrawContext;
+class CompleteRenderingBuildInfo;
 
 /// @addtogroup renderer
 /// @{
@@ -33,13 +34,18 @@ public:
 
 	~RenderableDrawer();
 
-	ANKI_USE_RESULT Error drawRange(
-		Pass pass, const FrustumComponent& frc, CommandBufferPtr cmdb, VisibleNode* begin, VisibleNode* end);
+	ANKI_USE_RESULT Error drawRange(Pass pass,
+		const Mat4& viewMat,
+		const Mat4& viewProjMat,
+		CommandBufferPtr cmdb,
+		const VisibleNode* begin,
+		const VisibleNode* end);
 
 private:
 	Renderer* m_r;
 
-	void setupUniforms(DrawContext& ctx, const RenderComponent& renderable, const RenderingKey& key);
+	ANKI_USE_RESULT Error flushDrawcall(DrawContext& ctx, CompleteRenderingBuildInfo& build);
+	void setupUniforms(DrawContext& ctx, CompleteRenderingBuildInfo& build);
 
 	ANKI_USE_RESULT Error drawSingle(DrawContext& ctx);
 };

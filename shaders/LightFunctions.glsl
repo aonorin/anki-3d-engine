@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -10,7 +10,6 @@
 
 #include "shaders/Common.glsl"
 
-const float ATTENUATION_BOOST = 0.05;
 const float OMNI_LIGHT_FRUSTUM_NEAR_PLANE = 0.1 / 4.0;
 
 const uint SHADOW_SAMPLE_COUNT = 16;
@@ -50,8 +49,7 @@ vec3 computeSpecularColorBrdf(vec3 v, // view dir
 	D = a2 / (PI * D * D);
 	D = clamp(D, EPSILON, 100.0); // Limit that because it may grow
 
-// G(l,v,h)/(4*dot(n,h)*dot(n,v)) aka Visibility term: Geometric shadowing
-// divided by BRDF denominator
+// G(l,v,h)/(4*dot(n,h)*dot(n,v)) aka Visibility term: Geometric shadowing divided by BRDF denominator
 #if 0
 	float nov = max(EPSILON, dot(n, v));
 	float V_v = nov + sqrt((nov - nov * a2) * nov + a2);
@@ -139,9 +137,9 @@ float computeShadowFactorSpot(
 }
 
 float computeShadowFactorOmni(
-	in vec3 frag2Light, in float layer, in float radius, in mat4 viewMat, in samplerCubeArrayShadow omniMapArr)
+	in vec3 frag2Light, in float layer, in float radius, in mat3 invViewMat, in samplerCubeArrayShadow omniMapArr)
 {
-	vec3 dir = (viewMat * vec4(-frag2Light, 1.0)).xyz;
+	vec3 dir = invViewMat * -frag2Light;
 	vec3 dirabs = abs(dir);
 	float dist = -max(dirabs.x, max(dirabs.y, dirabs.z));
 	dir = normalize(dir);
@@ -164,7 +162,7 @@ float computeShadowFactorOmni(
 
 // Compute the cubemap texture lookup vector given the reflection vector (r) the radius squared of the probe (R2) and
 // the frag pos in sphere space (f)
-vec3 computeCubemapVecAccurate(in vec3 r, in float R2, in vec3 f, in mat3 invViewRotation)
+vec3 computeCubemapVecAccurate(in vec3 r, in float R2, in vec3 f)
 {
 	// Compute the collision of the r to the inner part of the sphere
 	// From now on we work on the sphere's space
@@ -182,16 +180,13 @@ vec3 computeCubemapVecAccurate(in vec3 r, in float R2, in vec3 f, in mat3 invVie
 	float sq = sqrt(R2 - pp);
 	vec3 x = p + sq * r;
 
-	// Rotate UV to move it to world space
-	vec3 uv = invViewRotation * x;
-
-	return uv;
+	return x;
 }
 
 // Cheap version of computeCubemapVecAccurate
-vec3 computeCubemapVecCheap(in vec3 r, in float R2, in vec3 f, in mat3 invViewRotation)
+vec3 computeCubemapVecCheap(in vec3 r, in float R2, in vec3 f)
 {
-	return invViewRotation * r;
+	return r;
 }
 
 #endif

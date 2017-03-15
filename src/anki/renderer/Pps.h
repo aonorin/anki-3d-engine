@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -45,12 +45,12 @@ private:
 
 	FramebufferPtr m_fb;
 	Array2d<ShaderResourcePtr, 2, 2> m_frag; ///< One with Dbg and one without
-	Array2d<PipelinePtr, 2, 2> m_ppline; ///< With Dbg, Default FB or not
+	ShaderResourcePtr m_vert;
+	Array2d<ShaderProgramPtr, 2, 2> m_prog; ///< With Dbg, Default FB or not
 	TexturePtr m_rt;
-	Array<ResourceGroupPtr, 2> m_rcGroup; ///< One with Dbg and one without
 
 	TextureResourcePtr m_lut; ///< Color grading lookup texture.
-	Bool8 m_lutDirty = true;
+	TextureResourcePtr m_blueNoise;
 
 	Bool8 m_sharpenEnabled = false;
 

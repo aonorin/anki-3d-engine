@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -20,7 +20,7 @@ Error CString::toF64(F64& out) const
 
 	if(out == HUGE_VAL)
 	{
-		ANKI_LOGE("Conversion failed");
+		ANKI_UTIL_LOGE("Conversion failed");
 		err = ErrorCode::USER_DATA;
 	}
 
@@ -47,11 +47,17 @@ Error CString::toI64(I64& out) const
 
 	if(out == LLONG_MAX || out == LLONG_MIN)
 	{
-		ANKI_LOGE("Conversion failed");
+		ANKI_UTIL_LOGE("Conversion failed");
 		err = ErrorCode::USER_DATA;
 	}
 
 	return err;
+}
+
+String& String::operator=(StringAuto&& b)
+{
+	m_data = std::move(b.m_data);
+	return *this;
 }
 
 void String::create(Allocator alloc, const CStringType& cstr)
@@ -122,7 +128,7 @@ void String::sprintf(Allocator alloc, CString fmt, ...)
 
 	if(len < 0)
 	{
-		ANKI_LOGF("vsnprintf() failed");
+		ANKI_UTIL_LOGF("vsnprintf() failed");
 	}
 	else if(static_cast<PtrSize>(len) >= sizeof(buffer))
 	{

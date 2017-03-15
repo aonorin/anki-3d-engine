@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -10,6 +10,9 @@
 
 namespace anki
 {
+
+// Forward
+class CharacterControllerManager;
 
 /// @addtogroup physics
 /// @{
@@ -37,7 +40,7 @@ public:
 		return m_gravity;
 	}
 
-#ifdef ANKI_BUILD
+anki_internal:
 	NewtonWorld* getNewtonWorld() const
 	{
 		ANKI_ASSERT(m_world);
@@ -60,7 +63,12 @@ public:
 		LockGuard<Mutex> lock(m_mtx);
 		m_forDeletion.pushBack(m_alloc, obj);
 	}
-#endif
+
+	CharacterControllerManager& getCharacterControllerManager()
+	{
+		ANKI_ASSERT(m_playerManager);
+		return *m_playerManager;
+	}
 
 private:
 	HeapAllocator<U8> m_alloc;
@@ -70,7 +78,8 @@ private:
 	Vec4 m_gravity = Vec4(0.0, -9.8, 0.0, 0.0);
 	F32 m_dt = 0.0;
 
-	List<PhysicsPlayerController*> m_playerControllers;
+	/// @note Don't delete it. Newton will
+	CharacterControllerManager* m_playerManager = nullptr;
 
 	Mutex m_mtx;
 	List<PhysicsObject*> m_forDeletion;
@@ -79,14 +88,6 @@ private:
 	PhysicsPtr<T> newObjectInternal(TArgs&&... args);
 
 	void cleanupMarkedForDeletion();
-
-	/// Custom update
-	static void postUpdateCallback(const NewtonWorld* const world, void* const listenerUserData, F32 dt)
-	{
-		static_cast<PhysicsWorld*>(listenerUserData)->postUpdate(dt);
-	}
-
-	void postUpdate(F32 dt);
 
 	static void destroyCallback(const NewtonWorld* const world, void* const listenerUserData)
 	{
@@ -125,7 +126,7 @@ inline PhysicsPtr<T> PhysicsWorld::newInstance(TArgs&&... args)
 	}
 	else
 	{
-		ANKI_LOGE("Failed to create physics object");
+		ANKI_PHYS_LOGE("Failed to create physics object");
 
 		if(ptr)
 		{

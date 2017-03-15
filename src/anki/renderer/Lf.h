@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -43,18 +43,16 @@ private:
 	BufferPtr m_queryResultBuff;
 	BufferPtr m_indirectBuff;
 	ShaderResourcePtr m_writeIndirectBuffComp;
-	PipelinePtr m_updateIndirectBuffPpline;
-	ResourceGroupPtr m_updateIndirectBuffRsrc;
+	ShaderProgramPtr m_updateIndirectBuffProg;
 
 	ShaderResourcePtr m_occlusionVert;
 	ShaderResourcePtr m_occlusionFrag;
-	PipelinePtr m_occlusionPpline;
-	ResourceGroupPtr m_occlusionRcGroup;
+	ShaderProgramPtr m_occlusionProg;
 
 	// Sprite billboards
 	ShaderResourcePtr m_realVert;
 	ShaderResourcePtr m_realFrag;
-	PipelinePtr m_realPpline;
+	ShaderProgramPtr m_realProg;
 	U8 m_maxSpritesPerFlare;
 	U8 m_maxFlares;
 	U16 m_maxSprites;

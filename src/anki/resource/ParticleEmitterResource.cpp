@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -8,7 +8,6 @@
 #include <anki/resource/Model.h>
 #include <anki/util/StringList.h>
 #include <anki/misc/Xml.h>
-#include <anki/renderer/Ms.h>
 #include <cstring>
 
 namespace anki
@@ -157,37 +156,37 @@ Error ParticleEmitterResource::load(const ResourceFilename& filename)
 
 	if(m_particle.m_life <= 0.0)
 	{
-		ANKI_LOGE(ERROR, "life");
+		ANKI_RESOURCE_LOGE(ERROR, "life");
 		return ErrorCode::USER_DATA;
 	}
 
 	if(m_particle.m_life - m_particle.m_lifeDeviation <= 0.0)
 	{
-		ANKI_LOGE(ERROR, "lifeDeviation");
+		ANKI_RESOURCE_LOGE(ERROR, "lifeDeviation");
 		return ErrorCode::USER_DATA;
 	}
 
 	if(m_particle.m_size <= 0.0)
 	{
-		ANKI_LOGE(ERROR, "size");
+		ANKI_RESOURCE_LOGE(ERROR, "size");
 		return ErrorCode::USER_DATA;
 	}
 
 	if(m_maxNumOfParticles < 1)
 	{
-		ANKI_LOGE(ERROR, "maxNumOfParticles");
+		ANKI_RESOURCE_LOGE(ERROR, "maxNumOfParticles");
 		return ErrorCode::USER_DATA;
 	}
 
 	if(m_emissionPeriod <= 0.0)
 	{
-		ANKI_LOGE(ERROR, "emissionPeriod");
+		ANKI_RESOURCE_LOGE(ERROR, "emissionPeriod");
 		return ErrorCode::USER_DATA;
 	}
 
 	if(m_particlesPerEmittion < 1)
 	{
-		ANKI_LOGE(ERROR, "particlesPerEmission");
+		ANKI_RESOURCE_LOGE(ERROR, "particlesPerEmission");
 		return ErrorCode::USER_DATA;
 	}
 
@@ -195,47 +194,16 @@ Error ParticleEmitterResource::load(const ResourceFilename& filename)
 	//
 	updateFlags();
 
-	// Create ppline
-	//
-	PipelineInitInfo pinit;
-
-	pinit.m_vertex.m_bindingCount = 1;
-	pinit.m_vertex.m_bindings[0].m_stride = VERTEX_SIZE;
-	pinit.m_vertex.m_attributeCount = 3;
-	pinit.m_vertex.m_attributes[0].m_format = PixelFormat(ComponentFormat::R32G32B32, TransformFormat::FLOAT);
-	pinit.m_vertex.m_attributes[0].m_offset = 0;
-	pinit.m_vertex.m_attributes[0].m_binding = 0;
-	pinit.m_vertex.m_attributes[1].m_format = PixelFormat(ComponentFormat::R32, TransformFormat::FLOAT);
-	pinit.m_vertex.m_attributes[1].m_offset = sizeof(Vec3);
-	pinit.m_vertex.m_attributes[1].m_binding = 0;
-	pinit.m_vertex.m_attributes[2].m_format = PixelFormat(ComponentFormat::R32, TransformFormat::FLOAT);
-	pinit.m_vertex.m_attributes[2].m_offset = sizeof(Vec3) + sizeof(F32);
-	pinit.m_vertex.m_attributes[2].m_binding = 0;
-
-	pinit.m_depthStencil.m_depthWriteEnabled = false;
-	pinit.m_depthStencil.m_format = MS_DEPTH_ATTACHMENT_PIXEL_FORMAT;
-
-	pinit.m_color.m_attachmentCount = 1;
-	pinit.m_color.m_attachments[0].m_format = IS_COLOR_ATTACHMENT_PIXEL_FORMAT;
-	pinit.m_color.m_attachments[0].m_srcBlendMethod = BlendMethod::SRC_ALPHA;
-	pinit.m_color.m_attachments[0].m_dstBlendMethod = BlendMethod::ONE_MINUS_SRC_ALPHA;
-
-	pinit.m_inputAssembler.m_topology = PrimitiveTopology::POINTS;
-
-	m_lodCount = m_material->getLodCount();
-	for(U i = 0; i < m_lodCount; ++i)
-	{
-		RenderingKey key(Pass::MS_FS, i, false, 1);
-		const MaterialVariant& variant = m_material->getVariant(key);
-
-		pinit.m_shaders[U(ShaderType::VERTEX)] = variant.getShader(ShaderType::VERTEX);
-
-		pinit.m_shaders[U(ShaderType::FRAGMENT)] = variant.getShader(ShaderType::FRAGMENT);
-
-		m_pplines[i] = getManager().getGrManager().newInstance<Pipeline>(pinit);
-	}
-
 	return ErrorCode::NONE;
+}
+
+void ParticleEmitterResource::getRenderingInfo(U lod, ShaderProgramPtr& prog) const
+{
+	lod = min<U>(lod, m_lodCount - 1);
+
+	RenderingKey key(Pass::MS_FS, lod, false, 1);
+	const MaterialVariant& variant = m_material->getVariant(key);
+	prog = variant.getShaderProgram();
 }
 
 } // end namespace anki

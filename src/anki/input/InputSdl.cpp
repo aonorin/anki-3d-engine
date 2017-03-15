@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -323,7 +323,7 @@ Error Input::handleEvents()
 			m_mousePosNdc.y() = -((F32)event.button.y / m_nativeWindow->getHeight() * 2.0 - 1.0);
 			break;
 		case SDL_QUIT:
-			addEvent(Event::WINDOW_CLOSED);
+			addEvent(InputEvent::WINDOW_CLOSED);
 			break;
 		case SDL_TEXTINPUT:
 			break;

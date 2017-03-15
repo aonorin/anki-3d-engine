@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -165,6 +165,22 @@ inline TVec4<F32> TVec4<F32>::Base::getAbs() const
 {
 	static const __m128 signMask = _mm_set1_ps(-0.0f);
 	return TVec4<F32>(_mm_andnot_ps(signMask, m_simd));
+}
+
+template<>
+inline F32 TVec4<F32>::Base::getLengthSquared() const
+{
+	F32 o;
+	_mm_store_ss(&o, _mm_dp_ps(m_simd, m_simd, 0xF1));
+	return o;
+}
+
+template<>
+inline TVec4<F32> TVec4<F32>::Base::operator-() const
+{
+	TVec4<F32> o;
+	o.getSimd() = _mm_sub_ps(_mm_setzero_ps(), getSimd());
+	return o;
 }
 
 #elif ANKI_SIMD == ANKI_SIMD_NEON

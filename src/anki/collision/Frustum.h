@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -18,31 +18,31 @@ namespace anki
 /// @addtogroup Collision
 /// @{
 
+/// Frustum type
+enum class FrustumType : U8
+{
+	PERSPECTIVE,
+	ORTHOGRAPHIC
+};
+
+/// The 6 frustum planes
+enum class FrustumPlaneType : U8
+{
+	NEAR,
+	FAR,
+	LEFT,
+	RIGHT,
+	TOP,
+	BOTTOM,
+	COUNT ///< Number of planes
+};
+
 /// Frustum collision shape. This shape consists from 6 planes. The planes are being used to find shapes that are
 /// inside the frustum
 class Frustum : public CompoundShape
 {
 public:
-	/// Frustum type
-	enum class Type : U8
-	{
-		PERSPECTIVE,
-		ORTHOGRAPHIC
-	};
-
-	/// The 6 frustum planes
-	enum class PlaneType : U8
-	{
-		NEAR,
-		FAR,
-		LEFT,
-		RIGHT,
-		TOP,
-		BOTTOM,
-		COUNT ///< Number of planes
-	};
-
-	Frustum(Type type)
+	Frustum(FrustumType type)
 		: m_type(type)
 	{
 	}
@@ -51,7 +51,7 @@ public:
 	{
 	}
 
-	Type getType() const
+	FrustumType getType() const
 	{
 		return m_type;
 	}
@@ -105,6 +105,11 @@ public:
 	/// Calculate the projection matrix
 	virtual Mat4 calculateProjectionMatrix() const = 0;
 
+	const Array<Plane, U(FrustumPlaneType::COUNT)>& getPlanesWorldSpace() const
+	{
+		return m_planesW;
+	}
+
 protected:
 	/// @name Viewing variables
 	/// @{
@@ -113,8 +118,8 @@ protected:
 	/// @}
 
 	/// Used to check against the frustum
-	Array<Plane, (U)PlaneType::COUNT> m_planesL;
-	Array<Plane, (U)PlaneType::COUNT> m_planesW;
+	Array<Plane, U(FrustumPlaneType::COUNT)> m_planesL;
+	Array<Plane, U(FrustumPlaneType::COUNT)> m_planesW;
 
 	/// Keep the transformation.
 	Transform m_trf = Transform::getIdentity();
@@ -136,7 +141,7 @@ protected:
 	Frustum& operator=(const Frustum& b);
 
 private:
-	Type m_type;
+	FrustumType m_type;
 };
 
 /// Frustum shape for perspective cameras
@@ -187,8 +192,8 @@ public:
 	{
 		ANKI_ASSERT(near > 0.0);
 		ANKI_ASSERT(far > near);
-		ANKI_ASSERT(fovX <= getPi<F32>());
-		ANKI_ASSERT(fovY <= getPi<F32>());
+		ANKI_ASSERT(fovX <= PI);
+		ANKI_ASSERT(fovY <= PI);
 		m_fovX = fovX;
 		m_fovY = fovY;
 		m_near = near;

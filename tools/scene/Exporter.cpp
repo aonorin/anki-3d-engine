@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -60,7 +60,7 @@ static const aiNode* findNodeWithName(const std::string& name, const aiNode* nod
 	const aiNode* out = nullptr;
 
 	// Go to children
-	for(uint32_t i = 0; i < node->mNumChildren; i++)
+	for(unsigned i = 0; i < node->mNumChildren; i++)
 	{
 		out = findNodeWithName(name, node->mChildren[i]);
 		if(out)
@@ -151,6 +151,20 @@ static float getUniformScale(const aiMatrix4x4& m)
 	{
 		ERROR("No uniform scale in the matrix");
 	}
+
+	return scale;
+}
+
+static aiVector3D getNonUniformScale(const aiMatrix4x4& m)
+{
+	aiVector3D xAxis(m.a1, m.b1, m.c1);
+	aiVector3D yAxis(m.a2, m.b2, m.c2);
+	aiVector3D zAxis(m.a3, m.b3, m.c3);
+
+	aiVector3D scale;
+	scale[0] = xAxis.Length();
+	scale[1] = yAxis.Length();
+	scale[2] = zAxis.Length();
 
 	return scale;
 }
@@ -410,8 +424,7 @@ void Exporter::exportLight(const aiLight& light)
 	// Colors
 	// aiColor3D linear = computeLightColor(light.mColorDiffuse);
 	aiVector3D linear(light.mColorDiffuse[0], light.mColorDiffuse[1], light.mColorDiffuse[2]);
-	file << "lcomp:setDiffuseColor(Vec4.new(" << linear[0] << ", " << linear[1] << ", " << linear[2] << ", "
-		 << "1))\n";
+	file << "lcomp:setDiffuseColor(Vec4.new(" << linear[0] << ", " << linear[1] << ", " << linear[2] << ", 1))\n";
 
 	// linear = computeLightColor(light.mColorSpecular);
 	if(light.mProperties.find("specular_color") != light.mProperties.end())
@@ -419,8 +432,7 @@ void Exporter::exportLight(const aiLight& light)
 		stringToFloatArray<3>(light.mProperties.at("specular_color"), linear);
 	}
 
-	file << "lcomp:setSpecularColor(Vec4.new(" << linear[0] << ", " << linear[1] << ", " << linear[2] << ", "
-		 << "1))\n";
+	file << "lcomp:setSpecularColor(Vec4.new(" << linear[0] << ", " << linear[1] << ", " << linear[2] << ", 1))\n";
 
 	// Geometry
 	aiVector3D direction(0.0, 0.0, 1.0);
@@ -496,8 +508,7 @@ void Exporter::exportLight(const aiLight& light)
 	{
 		if(!lfCompRetrieved)
 		{
-			file << "lfcomp = node:getSceneNodeBase():"
-				 << "getLensFlareComponent()\n";
+			file << "lfcomp = node:getSceneNodeBase():getLensFlareComponent()\n";
 			lfCompRetrieved = true;
 		}
 
@@ -510,8 +521,7 @@ void Exporter::exportLight(const aiLight& light)
 	{
 		if(!lfCompRetrieved)
 		{
-			file << "lfcomp = node:getSceneNodeBase():"
-				 << "getLensFlareComponent()\n";
+			file << "lfcomp = node:getSceneNodeBase():getLensFlareComponent()\n";
 			lfCompRetrieved = true;
 		}
 
@@ -526,8 +536,7 @@ void Exporter::exportLight(const aiLight& light)
 	{
 		if(!eventCreated)
 		{
-			file << "event = events:newLightEvent(0.0, -1.0, "
-					"node:getSceneNodeBase())\n";
+			file << "event = events:newLightEvent(0.0, -1.0, node:getSceneNodeBase())\n";
 			eventCreated = true;
 		}
 
@@ -542,8 +551,7 @@ void Exporter::exportLight(const aiLight& light)
 	{
 		if(!eventCreated)
 		{
-			file << "event = events:newLightEvent(0.0, -1.0, "
-					"node:getSceneNodeBase())\n";
+			file << "event = events:newLightEvent(0.0, -1.0, node:getSceneNodeBase())\n";
 			eventCreated = true;
 		}
 
@@ -601,15 +609,13 @@ void Exporter::exportAnimation(const aiAnimation& anim, unsigned index)
 
 			if(m_flipyz)
 			{
-				file << "\t\t\t\t<key><time>" << key.mTime << "</time>"
-					 << "<value>" << key.mValue[0] << " " << key.mValue[2] << " " << -key.mValue[1]
-					 << "</value></key>\n";
+				file << "\t\t\t\t<key><time>" << key.mTime << "</time><value>" << key.mValue[0] << " " << key.mValue[2]
+					 << " " << -key.mValue[1] << "</value></key>\n";
 			}
 			else
 			{
-				file << "\t\t\t\t<key><time>" << key.mTime << "</time>"
-					 << "<value>" << key.mValue[0] << " " << key.mValue[1] << " " << key.mValue[2]
-					 << "</value></key>\n";
+				file << "\t\t\t\t<key><time>" << key.mTime << "</time><value>" << key.mValue[0] << " " << key.mValue[1]
+					 << " " << key.mValue[2] << "</value></key>\n";
 			}
 		}
 		file << "\t\t\t</positionKeys>\n";
@@ -823,6 +829,51 @@ void Exporter::visitNode(const aiNode* ainode)
 				collisionMesh = prop.second;
 				special = false;
 			}
+			else if(prop.first.find("decal_") == 0)
+			{
+				DecalNode decal;
+				for(const auto& pr : m_scene->mMeshes[meshIndex]->mProperties)
+				{
+					if(pr.first == "decal_diffuse_atlas")
+					{
+						decal.m_diffuseTextureAtlasFilename = pr.second;
+					}
+					else if(pr.first == "decal_diffuse_sub_texture")
+					{
+						decal.m_diffuseSubTextureName = pr.second;
+					}
+					else if(pr.first == "decal_diffuse_factor")
+					{
+						decal.m_factors[0] = std::stof(pr.second);
+					}
+					else if(pr.first == "decal_normal_roughness_atlas")
+					{
+						decal.m_normalRoughnessAtlasFilename = pr.second;
+					}
+					else if(pr.first == "decal_normal_roughness_sub_texture")
+					{
+						decal.m_normalRoughnessSubTextureName = pr.second;
+					}
+					else if(pr.first == "decal_normal_roughness_factor")
+					{
+						decal.m_factors[1] = std::stof(pr.second);
+					}
+				}
+
+				if(decal.m_diffuseTextureAtlasFilename.empty() || decal.m_diffuseSubTextureName.empty())
+				{
+					ERROR("Missing decal information");
+				}
+
+				aiMatrix4x4 trf = toAnkiMatrix(ainode->mTransformation);
+				decal.m_size = getNonUniformScale(trf);
+				removeScale(trf);
+				decal.m_transform = trf;
+
+				m_decals.push_back(decal);
+				special = true;
+				break;
+			}
 		}
 
 		if(special)
@@ -1003,6 +1054,31 @@ void Exporter::exportAll()
 	}
 
 	//
+	// Export decals
+	//
+	i = 0;
+	for(const DecalNode& decal : m_decals)
+	{
+		std::string name = "decal" + std::to_string(i);
+		file << "\nnode = scene:newDecalNode(\"" << name << "\")\n";
+
+		writeNodeTransform("node", decal.m_transform);
+
+		file << "decalc = node:getSceneNodeBase():getDecalComponent()\n";
+		file << "decalc:setDiffuseDecal(\"" << decal.m_diffuseTextureAtlasFilename << "\", \""
+			 << decal.m_diffuseSubTextureName << "\", " << decal.m_factors[0] << ")\n";
+		file << "decalc:updateShape(" << decal.m_size.x << ", " << decal.m_size.y << ", " << decal.m_size.z << ")\n";
+
+		if(!decal.m_normalRoughnessAtlasFilename.empty())
+		{
+			file << "decalc:setNormalRoughnessDecal(\"" << decal.m_normalRoughnessAtlasFilename << "\", \""
+				 << decal.m_normalRoughnessSubTextureName << "\", " << decal.m_factors[1] << ")\n";
+		}
+
+		++i;
+	}
+
+	//
 	// Export nodes and models.
 	//
 	for(uint32_t i = 0; i < m_nodes.size(); i++)
@@ -1020,8 +1096,7 @@ void Exporter::exportAll()
 		std::string nodeName = modelName + node.m_group + std::to_string(i);
 
 		// Write the main node
-		file << "\nnode = scene:newModelNode(\"" << nodeName << "\", \"" << m_rpath << modelName << ".ankimdl"
-			 << "\")\n";
+		file << "\nnode = scene:newModelNode(\"" << nodeName << "\", \"" << m_rpath << modelName << ".ankimdl\")\n";
 		writeNodeTransform("node", node.m_transform);
 
 		// Write the collision node
@@ -1043,8 +1118,7 @@ void Exporter::exportAll()
 				exportCollisionMesh(i);
 
 				std::string fname = m_rpath + node.m_collisionMesh + ".ankicl";
-				file << "node = scene:newStaticCollisionNode(\"" << nodeName << "_cl"
-					 << "\", \"" << fname << "\", trf)\n";
+				file << "node = scene:newStaticCollisionNode(\"" << nodeName << "_cl\", \"" << fname << "\", trf)\n";
 			}
 			else
 			{

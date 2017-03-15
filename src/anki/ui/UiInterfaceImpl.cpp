@@ -1,4 +1,4 @@
-// Copyright (C) 2009-2016, Panagiotis Christopoulos Charitos and contributors.
+// Copyright (C) 2009-2017, Panagiotis Christopoulos Charitos and contributors.
 // All rights reserved.
 // Code licensed under the BSD License.
 // http://www.anki3d.org/LICENSE
@@ -33,7 +33,8 @@ Error UiInterfaceImpl::init(GrManager* gr, ResourceManager* rc)
 
 	ANKI_CHECK(rc->loadResource("shaders/UiLines.frag.glsl", m_stages[StageId::LINES].m_fShader));
 
-	// Init pplines
+// Init pplines
+#if 0
 	PipelineInitInfo ppinit;
 	ppinit.m_vertex.m_bindingCount = 1;
 	ppinit.m_vertex.m_bindings[0].m_stride = sizeof(Vertex);
@@ -52,12 +53,13 @@ Error UiInterfaceImpl::init(GrManager* gr, ResourceManager* rc)
 
 	ppinit.m_color.m_attachmentCount = 1;
 	ppinit.m_color.m_attachments[0].m_format = PixelFormat(ComponentFormat::R8G8B8, TransformFormat::UNORM);
-	ppinit.m_color.m_attachments[0].m_srcBlendMethod = BlendMethod::SRC_ALPHA;
-	ppinit.m_color.m_attachments[0].m_dstBlendMethod = BlendMethod::ONE_MINUS_SRC_ALPHA;
+	ppinit.m_color.m_attachments[0].m_srcBlendFactor = BlendFactor::SRC_ALPHA;
+	ppinit.m_color.m_attachments[0].m_dstBlendFactor = BlendFactor::ONE_MINUS_SRC_ALPHA;
 
 	ppinit.m_shaders[U(ShaderType::VERTEX)] = m_stages[StageId::LINES].m_vShader->getGrShader();
 	ppinit.m_shaders[U(ShaderType::FRAGMENT)] = m_stages[StageId::LINES].m_fShader->getGrShader();
 	m_stages[StageId::LINES].m_ppline = gr->newInstance<Pipeline>(ppinit);
+#endif
 
 	// Init buffers
 	for(U s = 0; s < StageId::COUNT; ++s)
@@ -69,7 +71,8 @@ Error UiInterfaceImpl::init(GrManager* gr, ResourceManager* rc)
 		}
 	}
 
-	// Init resource groups
+// Init resource groups
+#if 0
 	for(U s = 0; s < StageId::COUNT; ++s)
 	{
 		for(U i = 0; i < m_stages[s].m_rcGroups.getSize(); ++i)
@@ -85,6 +88,7 @@ Error UiInterfaceImpl::init(GrManager* gr, ResourceManager* rc)
 			m_stages[s].m_rcGroups[i] = gr->newInstance<ResourceGroup>(rcinit);
 		}
 	}
+#endif
 
 	return ErrorCode::NONE;
 }
@@ -123,9 +127,9 @@ void UiInterfaceImpl::drawLines(const WeakArray<UVec2>& positions, const Color& 
 
 	ANKI_ASSERT(m_vertCounts[stageId] + positions.getSize() <= MAX_VERTS);
 
-	m_cmdb->bindPipeline(m_stages[StageId::LINES].m_ppline);
-	m_cmdb->bindResourceGroup(m_stages[StageId::LINES].m_rcGroups[m_timestamp], 0, nullptr);
-	m_cmdb->drawArrays(positions.getSize(), 1, m_vertCounts[stageId]);
+	// m_cmdb->bindPipeline(m_stages[StageId::LINES].m_ppline);
+	// m_cmdb->bindResourceGroup(m_stages[StageId::LINES].m_rcGroups[m_timestamp], 0, nullptr);
+	// m_cmdb->drawArrays(positions.getSize(), 1, m_vertCounts[stageId]);
 
 	for(const UVec2& pos : positions)
 	{
@@ -163,6 +167,7 @@ Error UiInterfaceImpl::loadImage(const CString& filename, IntrusivePtr<UiImage>&
 
 Error UiInterfaceImpl::createR8Image(const WeakArray<U8>& data, const UVec2& size, IntrusivePtr<UiImage>& img)
 {
+#if 0
 	ANKI_ASSERT(data.getSize() == size.x() * size.y());
 
 	// Calc mip count
@@ -200,6 +205,7 @@ Error UiInterfaceImpl::createR8Image(const WeakArray<U8>& data, const UVec2& siz
 	UiImageImpl* impl = getAllocator().newInstance<UiImageImpl>(this);
 	impl->m_texture = tex;
 	img.reset(impl);
+#endif
 
 	return ErrorCode::NONE;
 }
